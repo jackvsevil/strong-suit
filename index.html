@@ -228,7 +228,7 @@ p{margin:0}
     <div class="roundhead">
       <div class="rh-row"><div><p class="small muted" id="rFam"></p><p class="rule" id="rRule"></p></div><div class="chipmult" id="rMult">×1</div></div>
       <div class="timer" id="timer"><i id="timerBar"></i></div>
-      <div class="rh-row"><span class="secs" id="secs">30s</span><span class="hint">Tap or drag to match</span></div>
+      <div class="rh-row"><span class="secs" id="secs">60s</span><span class="hint">Tap or drag to match</span></div>
     </div>
     <div class="pairs" id="pairs"></div>
     <div class="pool" id="pool" aria-label="Answers"></div>
@@ -261,7 +261,7 @@ p{margin:0}
     <ol class="rules">
       <li><p>You're dealt <b>five categories</b>. Tap them from <b>strongest to weakest</b>. You'll skip your weakest!</p></li>
       <li><p>You play the other four from weakest to strongest, and each round is worth more than the last.</p><div class="example" style="grid-column:2"><span class="mx1">×1</span><span class="mx2">×2</span><span class="mx3">×3</span><span class="mx4">×4</span></div></li>
-      <li><p>Each round, <b>match six pairs in 30 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
+      <li><p>Each round, <b>match six pairs in 60 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
       <li><p>The best possible score is <b>60</b>. Your <b>self-awareness</b> shows how close your order was to the best order for your results.</p></li>
     </ol>
     <button class="btn" id="howClose">Got it</button>
@@ -271,7 +271,7 @@ p{margin:0}
 
 <script>
 const FEEDBACK_URL = ""; // paste a Google Form link here to show a feedback link on the results screen
-const ROUND_SECONDS = 30;
+const ROUND_SECONDS = 60;
 const FAMILY_EMOJI = {"Film & TV":"🎬","Music":"🎵","Sport":"⚽","Geography":"🌍","History":"📜","Science & Nature":"🔬","Food & Drink":"🍽️","Language":"🔤","Art & Literature":"🎨","Pop Culture":"✨"};
 const WP = t => "https://en.wikipedia.org/wiki/" + t;
 
