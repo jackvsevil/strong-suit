@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
 <title>Strong Suit</title>
 <script>
@@ -14,6 +16,7 @@ window.addEventListener("error", function(e){
     (document.body||document.documentElement).appendChild(d);}catch(_){}
 });
 </script>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231E3B70'/><path fill='%23fff' d='M32 9C25 19 11 26 11 37.5 11 45 16.5 50 23 50c3.6 0 6.5-1.6 8-3.8-.4 4.6-2.6 8.6-6.5 10.8h15c-3.9-2.2-6.1-6.2-6.5-10.8 1.5 2.2 4.4 3.8 8 3.8 6.5 0 12-5 12-12.5C53 26 39 19 32 9Z'/></svg>">
 <meta name="description" content="A daily matching quiz. Skip the topic you know least, play the rest hardest first, and see how well you know yourself.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,7 +52,7 @@ a{color:var(--back-2)}
 .wrap{max-width:480px;margin:0 auto;padding-inline:16px;padding-block:12px 120px;min-height:100%}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:6px 14px}
 .brand{font:400 24px/1 var(--display);letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
-.brand .pip{color:var(--red);font-size:18px}
+.brand .pip{color:var(--ink);width:20px;height:20px;flex:0 0 auto}
 .iconbtn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-weight:700;cursor:pointer}
 h1,h2{font-family:var(--display);font-weight:400;text-wrap:balance;margin:0;letter-spacing:-.01em}
 h1{font-size:34px;line-height:1.05}
@@ -162,7 +165,7 @@ p{margin:0}
 .dots i{width:10px;height:10px;border-radius:3px;background:var(--line)}
 .dots i.on{background:var(--good)}
 .dots.bonus-dots i.on{background:var(--yellow)}   /* right, but didn't score: matches 🟨 on the share card */
-.aware{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+.aware{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
 .aware .pct{grid-row:span 2;font:400 40px/1 var(--display);color:var(--back-2)}
 .aware b{font-size:16px}
 .sharebox{font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;width:100%;resize:none;color:var(--ink)}
@@ -196,7 +199,8 @@ body.inround.tut .wrap{padding-bottom:230px}
 .bonus b{font-size:16px}
 .bonus .btn{flex:none;min-height:48px;font-size:16px}
 .verdict{font-size:14px;font-weight:600;margin-top:4px}
-.row .m.star{color:var(--back-2);font-size:20px}
+.row .m.star{color:var(--muted);font-size:20px}
+.mxb{color:var(--muted)!important}
 /* Practice hand: a coach bubble sits above the action bar, by the thumb */
 .coach{max-width:448px;margin:0 auto 10px;background:var(--back);color:var(--on-back);border-radius:14px;padding:11px 14px;font-weight:600;font-size:15px;line-height:1.35;box-shadow:var(--shadow);animation:coachIn .25s ease-out}
 .coach .tag{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:2px}
@@ -211,7 +215,7 @@ body.tut .wrap{padding-bottom:230px}
 
 <div class="wrap" id="app">
   <header class="top">
-    <div class="brand"><span class="pip" aria-hidden="true">♦</span>Strong Suit</div>
+    <div class="brand"><svg class="pip" viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M32 9C25 19 11 26 11 37.5 11 45 16.5 50 23 50c3.6 0 6.5-1.6 8-3.8-.4 4.6-2.6 8.6-6.5 10.8h15c-3.9-2.2-6.1-6.2-6.5-10.8 1.5 2.2 4.4 3.8 8 3.8 6.5 0 12-5 12-12.5C53 26 39 19 32 9Z"/></svg>Strong Suit</div>
     <button class="iconbtn" id="helpBtn" aria-label="How to play">?</button>
   </header>
 
@@ -489,7 +493,7 @@ function startGame(){
 function readyRound(){
   const c = curCat();
   $("readyRound").textContent = bonus ? "Bonus round · doesn't count" : "Round " + (roundNo+1) + " of 4";
-  if(bonus){ $("readyMult").textContent = "★"; $("readyMult").className = "bigmult mx1"; }
+  if(bonus){ $("readyMult").textContent = "★"; $("readyMult").className = "bigmult mxb"; }
   else { $("readyMult").innerHTML = "<small>×</small>" + (roundNo+1); $("readyMult").className = "bigmult mx" + (roundNo+1); }
   $("readyRule").textContent = ruleOf(c);
   if(tut){   // practice: no countdown, the player starts each round when ready
@@ -508,7 +512,7 @@ function readyRound(){
 function startRound(){
   const c = curCat();
   roundState = { cat:c, answers:Array(6).fill(null), sel:0, pool:shuffle(c.pairs.map(p=>p[1])), end: Date.now() + ROUND_SECONDS*1000 };
-  $("rFam").innerHTML = famLabel(c.fam); $("rRule").textContent = ruleOf(c); $("rMult").textContent = bonus ? "Bonus" : "×" + (roundNo+1); $("rMult").className = "chipmult mx" + (bonus ? 1 : roundNo+1);
+  $("rFam").innerHTML = famLabel(c.fam); $("rRule").textContent = ruleOf(c); $("rMult").textContent = bonus ? "Bonus" : "×" + (roundNo+1); $("rMult").className = "chipmult " + (bonus ? "mxb" : "mx" + (roundNo+1));
   renderRound(); show("round");
   clearInterval(timerId);
   $("timer").hidden = tut;
