@@ -174,6 +174,8 @@ p{margin:0}
 .rules li::before{counter-increment:r;content:counter(r);font:400 22px/1.2 var(--display);color:var(--red);text-align:center}
 .example{display:flex;gap:6px;flex-wrap:wrap;font:400 18px/1 var(--display)}
 .example span{background:var(--table);color:var(--red);border-radius:8px;padding:6px 8px}
+.example{align-items:center}
+.example .arr{font:600 18px/1 var(--body);font-style:normal;color:var(--muted)}
 @media (min-width:700px){.modal{place-items:center}}
 /* multiplier colours: stakes rise from blue to green to amber to red */
 .mx1{color:var(--back-2)!important}.mx2{color:var(--good)!important}.mx3{color:var(--amber)!important}.mx4{color:var(--red)!important}
@@ -266,7 +268,7 @@ body.tut .wrap{padding-bottom:230px}
     <h2 id="howTitle">How to play</h2>
     <ol class="rules">
       <li><p>You're dealt <b>five categories</b>. Tap them from <b>strongest to weakest</b>. You'll skip your weakest!</p></li>
-      <li><p>You play the other four from weakest to strongest, and each round is worth more than the last.</p><div class="example" style="grid-column:2"><span class="mx1">×1</span><span class="mx2">×2</span><span class="mx3">×3</span><span class="mx4">×4</span></div></li>
+      <li><p>You play the other four from weakest to strongest, and each round is worth more than the last.</p><div class="example" style="grid-column:2"><span class="mx1">×1</span><i class="arr" aria-hidden="true">→</i><span class="mx2">×2</span><i class="arr" aria-hidden="true">→</i><span class="mx3">×3</span><i class="arr" aria-hidden="true">→</i><span class="mx4">×4</span></div></li>
       <li><p>Each round, <b>match six pairs in 45 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
     </ol>
     <button class="btn" id="howClose">Got it</button>
