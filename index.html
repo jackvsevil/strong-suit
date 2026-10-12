@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
 <title>Strong Suit</title>
+<script>
+/* Shows any script error on screen, so a broken load never looks like a blank page */
+window.addEventListener("error", function(e){
+  try{ var d=document.createElement("div");
+    d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:99;background:#B23A1F;color:#fff;padding:10px 12px;border-radius:10px;font:14px/1.4 system-ui,sans-serif";
+    d.textContent="Something went wrong loading Strong Suit: "+(e.message||"unknown error")+" (line "+(e.lineno||"?")+")";
+    (document.body||document.documentElement).appendChild(d);}catch(_){}
+});
+</script>
 <meta name="description" content="A daily matching quiz. Skip the topic you know least, play the rest hardest first, and see how well you know yourself.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
