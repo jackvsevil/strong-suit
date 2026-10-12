@@ -121,13 +121,14 @@ p{margin:0}
 .timer.low i{background:var(--red)}
 .secs{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:var(--muted)}
 .pairs{display:flex;flex-direction:column;gap:8px}
+#pairs{gap:10px}
 .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:stretch}
-.prompt{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:600;display:flex;align-items:center;min-width:0;overflow-wrap:anywhere}
-.slot{border-radius:12px;border:1.5px dashed var(--line);background:transparent;padding:10px 12px;text-align:left;cursor:pointer;min-height:48px;color:var(--muted);overflow-wrap:anywhere}
+.prompt{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-weight:600;display:flex;align-items:center;min-width:0;overflow-wrap:anywhere}
+.slot{border-radius:12px;border:1.5px dashed var(--line);background:transparent;padding:12px 14px;text-align:left;cursor:pointer;min-height:54px;font-size:16px;color:var(--muted);overflow-wrap:anywhere}
 .slot.filled{border-style:solid;border-color:var(--back-2);background:var(--card);color:var(--ink);font-weight:600}
 .slot.sel{border-color:var(--red);border-style:solid;box-shadow:inset 0 0 0 1px var(--red)}
-.pool{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px}
-.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:10px 14px;cursor:pointer;font-weight:600;box-shadow:var(--shadow);max-width:100%;overflow-wrap:anywhere;text-align:left}
+.pool{display:flex;flex-wrap:wrap;gap:10px;padding-top:10px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:13px 18px;min-height:50px;font-size:17px;cursor:pointer;font-weight:600;box-shadow:var(--shadow);max-width:100%;overflow-wrap:anywhere;text-align:left}
 .chip[hidden]{display:none}
 .hint{font-size:14px;color:var(--muted)}
 
@@ -181,6 +182,20 @@ p{margin:0}
 .mx1{color:var(--back-2)!important}.mx2{color:var(--good)!important}.mx3{color:var(--amber)!important}.mx4{color:var(--red)!important}
 .dragghost{position:fixed;z-index:50;pointer-events:none;transform:rotate(-3deg) scale(1.04);opacity:.95;box-shadow:0 12px 28px -8px rgba(10,16,30,.45)}
 .slot.over{border-color:var(--red);border-style:solid;background:var(--card)}
+/* Round screen: hide the header and keep answers above the fold on small phones */
+body.inround .top{display:none}
+body.inround .wrap{padding-top:4px;padding-bottom:110px}
+body.inround.tut .wrap{padding-bottom:230px}
+@media (max-height:760px){#pairs{gap:8px}.pool{padding-top:8px}}
+#pool{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));position:sticky;bottom:0;z-index:3;background:var(--table);margin-inline:-16px;padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);box-shadow:0 -12px 18px -16px rgba(10,16,30,.45)}
+#pool.empty{display:none}
+#pool .chip{border-radius:14px;text-align:left;line-height:1.25}
+/* Bonus round on the results screen */
+.bonus{background:var(--card);border:1.5px dashed var(--back-2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.bonus b{font-size:16px}
+.bonus .btn{flex:none;min-height:48px;font-size:16px}
+.verdict{font-size:14px;font-weight:600;margin-top:4px}
+.row .m.star{color:var(--back-2);font-size:20px}
 /* Practice hand: a coach bubble sits above the action bar, by the thumb */
 .coach{max-width:448px;margin:0 auto 10px;background:var(--back);color:var(--on-back);border-radius:14px;padding:11px 14px;font-weight:600;font-size:15px;line-height:1.35;box-shadow:var(--shadow);animation:coachIn .25s ease-out}
 .coach .tag{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:2px}
@@ -236,7 +251,7 @@ body.tut .wrap{padding-bottom:230px}
     <div class="roundhead">
       <div class="rh-row"><div><p class="small muted" id="rFam"></p><p class="rule" id="rRule"></p></div><div class="chipmult" id="rMult">×1</div></div>
       <div class="timer" id="timer"><i id="timerBar"></i></div>
-      <div class="rh-row"><span class="secs" id="secs">45s</span><span class="hint">Tap or drag to match</span></div>
+      <div class="rh-row"><span class="secs" id="secs">45s</span><span class="hint" id="rHint">Tap or drag to match</span></div>
     </div>
     <div class="pairs" id="pairs"></div>
     <div class="pool" id="pool" aria-label="Answers"></div>
@@ -255,6 +270,7 @@ body.tut .wrap{padding-bottom:230px}
     <div class="total"><p class="muted" id="resTitle">Hand #1</p><div class="num" id="resNum">0<small>/60</small></div></div>
     <div class="aware"><div class="pct" id="awPct">100%</div><b>Self-awareness</b><p class="small muted" id="awText"></p></div>
     <div class="rows" id="resRows"></div>
+    <div class="bonus" id="bonusCard" hidden><b>Bonus round</b><p class="small muted" id="bonusText"></p><button class="btn" id="bonusBtn">Play the one you skipped</button></div>
     <textarea class="sharebox" id="shareText" rows="8" readonly aria-label="Your result to share"></textarea>
     <p class="small muted" id="nextNote"></p>
     <p class="small" id="feedbackP" hidden><a id="feedbackLink" target="_blank" rel="noopener">Tell us what you thought</a></p>
@@ -368,7 +384,7 @@ const fmtDay = d => d.toLocaleDateString("en-GB",{weekday:"short", day:"numeric"
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
-function show(id){ ["home","setup","ready","round","reveal","results"].forEach(s => $(s).hidden = s !== id); window.scrollTo(0,0); }
+function show(id){ document.body.classList.toggle("inround", id === "round"); ["home","setup","ready","round","reveal","results"].forEach(s => $(s).hidden = s !== id); window.scrollTo(0,0); }
 function barVis(){ $("bar").hidden = !$("barInner").children.length && $("coach").hidden; }
 function coach(msg){ const c=$("coach"); if(!tut || !msg){ c.hidden=true; c.innerHTML=""; c.dataset.msg=""; barVis(); return; }
   if(c.dataset.msg !== msg){ c.innerHTML='<span class="tag">Practice hand</span>'+msg; c.dataset.msg=msg; c.style.animation="none"; c.offsetHeight; c.style.animation=""; }
@@ -382,12 +398,14 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clea
 /* ---------- state ---------- */
 let dayIdx = 0, skip = null, order = [], roundNo = 0, roundState = null, timerId = null, scores = [];
 let tut = false;   // true while playing the practice hand
+let bonus = false, lastRes = null;   // bonus: playing the skipped category after the hand
+const curCat = () => bonus ? curHand()[skip] : curHand()[order[roundNo]];
 const curHand = () => tut ? TUTORIAL : DAYS[dayIdx];
 function startTutorial(){
   if(!$("howto").hidden) closeHow();
   clearInterval(timerId); roundState = null;
   tut = true; document.body.classList.add("tut");
-  skip = null; order = []; ranked = []; scores = []; roundNo = 0;
+  skip = null; order = []; ranked = []; scores = []; roundNo = 0; bonus = false;
   renderSetup(true);
 }
 function exitTutorial(){ tut = false; document.body.classList.remove("tut"); coach(""); }
@@ -419,7 +437,7 @@ function openDay(i){
   exitTutorial();
   dayIdx = i;
   if(store.results[i]) return renderResults(store.results[i]);
-  skip = null; order = []; ranked = []; scores = []; roundNo = 0;
+  skip = null; order = []; ranked = []; scores = []; roundNo = 0; bonus = false;
   renderSetup(true);
 }
 
@@ -465,16 +483,18 @@ function startGame(){
   const cats = curHand();
   skip = cats.findIndex((_, i) => !ranked.includes(i));
   order = ranked.slice().reverse();   // play weakest (×1) first
-  roundNo = 0; scores = []; readyRound();
+  roundNo = 0; scores = []; bonus = false; readyRound();
 }
 function readyRound(){
-  const c = curHand()[order[roundNo]];
-  $("readyRound").textContent = "Round " + (roundNo+1) + " of 4";
-  $("readyMult").innerHTML = "<small>×</small>" + (roundNo+1); $("readyMult").className = "bigmult mx" + (roundNo+1);
+  const c = curCat();
+  $("readyRound").textContent = bonus ? "Bonus round · doesn't count" : "Round " + (roundNo+1) + " of 4";
+  if(bonus){ $("readyMult").textContent = "★"; $("readyMult").className = "bigmult mx1"; }
+  else { $("readyMult").innerHTML = "<small>×</small>" + (roundNo+1); $("readyMult").className = "bigmult mx" + (roundNo+1); }
   $("readyRule").textContent = ruleOf(c);
   if(tut){   // practice: no countdown, the player starts each round when ready
     $("readyCount").hidden = true;
-    coach(roundNo === 0
+    coach(bonus ? "This is the category you skipped. It doesn't count towards your score: it just shows whether you were right to skip it."
+      : roundNo === 0
       ? "You play your <b>weakest</b> pick first, while the stakes are low. Each round is worth more than the last."
       : "Round " + (roundNo+1) + " is worth <b>×" + (roundNo+1) + "</b>, so every correct pair scores " + (roundNo+1) + " points.");
     bar([{label:"Start round", onClick: startRound}]); show("ready"); return;
@@ -485,9 +505,9 @@ function readyRound(){
   const t = setInterval(() => { n--; if(n <= 0){ clearInterval(t); startRound(); } else $("readyCount").textContent = n; }, 800);
 }
 function startRound(){
-  const c = curHand()[order[roundNo]];
+  const c = curCat();
   roundState = { cat:c, answers:Array(6).fill(null), sel:0, pool:shuffle(c.pairs.map(p=>p[1])), end: Date.now() + ROUND_SECONDS*1000 };
-  $("rFam").innerHTML = famLabel(c.fam); $("rRule").textContent = ruleOf(c); $("rMult").textContent = "×" + (roundNo+1); $("rMult").className = "chipmult mx" + (roundNo+1);
+  $("rFam").innerHTML = famLabel(c.fam); $("rRule").textContent = ruleOf(c); $("rMult").textContent = bonus ? "Bonus" : "×" + (roundNo+1); $("rMult").className = "chipmult mx" + (bonus ? 1 : roundNo+1);
   renderRound(); show("round");
   clearInterval(timerId);
   $("timer").hidden = tut;
@@ -533,12 +553,25 @@ function renderRound(){
   });
   const filled = st.answers.filter(Boolean).length;
   if(tut) coach(filled === 6 ? "All six matched. Tap <b>Lock in</b> to see how you did."
+    : bonus ? "Bonus round: same rules, but it doesn't count. Just see how you'd have done."
     : roundNo === 0 ? (filled === 0
         ? "Match each item on the left to its answer. Tap an answer below to fill the highlighted gap, or drag it onto any gap."
         : "That's it. Keep going. Tap a filled gap to take its answer back, or drag answers between gaps to swap them.")
     : roundNo === 3 ? "Your strongest category, worth <b>×4</b>. Up to 24 points on this one."
     : "Same again, now worth <b>×" + (roundNo+1) + "</b>.");
-  bar([{label: filled < 6 ? filled + " of 6 matched" : "Lock in", disabled: filled < 6, onClick: submitRound}]);
+  $("rHint").textContent = filled === 0 ? "Tap or drag to match" : filled + " of 6 matched";
+  bar(filled < 6 ? [] : [{label:"Lock in", onClick: submitRound}]);   // bar stays out of the way until all six are matched
+  // Answers sit in a tray pinned to the bottom (above any coach bubble); keep the highlighted gap in view above it
+  pool.classList.toggle("empty", filled === 6);
+  const barH = $("bar").hidden ? 0 : Math.max(0, $("bar").offsetHeight - 18);
+  pool.style.bottom = barH + "px";
+  if(st.sel !== null && !$("round").hidden){
+    const sl = document.querySelector('[data-slot="'+st.sel+'"]');
+    const r = sl.getBoundingClientRect(), top = document.querySelector(".roundhead").getBoundingClientRect().bottom;
+    const floor = filled === 6 ? innerHeight - barH : pool.getBoundingClientRect().top;
+    if(r.bottom > floor - 8) window.scrollBy(0, r.bottom - floor + 14);
+    else if(r.top < top + 4) window.scrollBy(0, r.top - top - 14);
+  }
 }
 /* ---------- drag and drop (mouse, pen and touch) ---------- */
 let drag = null, dragJustEnded = false;
@@ -593,9 +626,10 @@ function submitRound(){
   const c = roundState.cat;
   const marks = c.pairs.map((p, i) => roundState.answers[i] === p[1]);
   const correct = marks.filter(Boolean).length, mult = roundNo + 1;
-  scores.push({ fam:c.fam, rule:ruleOf(c), correct, mult, marks });
+  if(bonus) lastRes.bonus = { correct, marks };
+  else scores.push({ fam:c.fam, rule:ruleOf(c), correct, mult, marks });
   $("revScore").textContent = correct + "/6";
-  $("revCalc").textContent = "× " + mult + " = " + (correct*mult) + " points";
+  $("revCalc").textContent = bonus ? "Bonus round · doesn't count" : "× " + mult + " = " + (correct*mult) + " points";
   $("revRule").textContent = ruleOf(c);
   const list = $("revList"); list.innerHTML = "";
   c.pairs.forEach((p, i) => {
@@ -609,6 +643,12 @@ function submitRound(){
     list.appendChild(d);
   });
   $("factText").textContent = c.fact; $("factSrc").href = c.src;
+  if(bonus){
+    if(!tut){ store.results[dayIdx] = lastRes; save(); }
+    if(tut) coach("");
+    bar([{label:"Back to your results", onClick: () => { bonus = false; renderResults(lastRes); }}]);
+    return show("reveal");
+  }
   const last = roundNo === 3;
   if(tut) coach(roundNo === 0
     ? "Green pairs were right. Red ones show what you picked, then the answer. In a daily hand you get <b>" + ROUND_SECONDS + " seconds</b> a round."
@@ -626,13 +666,16 @@ function finish(){
   const skipped = curHand()[skip];
   const res = { day:dayIdx, total, best, aware, rounds:scores, skipped:{fam:skipped.fam, rule:ruleOf(skipped)} };
   if(tut){ res.practice = true; return renderResults(res); }   // practice results are never saved
+  res.skipIdx = skip;
   store.results[dayIdx] = res; save();
   renderResults(res);
 }
 function shareText(r){
   const lines = ["Strong Suit #" + (r.day+1) + " · " + r.total + "/60"];
   r.rounds.slice().reverse().forEach(x => lines.push("×" + x.mult + " " + (FAMILY_EMOJI[x.fam]||"") + " " + x.marks.map(m => m ? "🟩" : "⬜").join("")));
-  lines.push("⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " skipped " + r.skipped.rule.split(" → ")[0]);
+  const sk = r.skipped.rule.split(" → ")[0];
+  lines.push(r.bonus ? "⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " " + r.bonus.marks.map(m => m ? "🟩" : "⬜").join("") + " (skipped " + sk + ")"
+                     : "⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " skipped " + sk);
   lines.push("🎯 Self-awareness " + r.aware + "%");
   lines.push(location.origin + location.pathname);
   return lines.join("\n");
@@ -641,7 +684,7 @@ function renderResults(r){
   $("resTitle").textContent = "Hand #" + (r.day+1);
   $("resNum").innerHTML = r.total + "<small>/60</small>";
   $("awPct").textContent = r.aware + "%";
-  $("awText").textContent = r.aware === 100 ? "You put your hardest category first and your easiest last. Perfect read on yourself." : "With these results, the best possible order would have scored " + r.best + ". You scored " + r.total + ".";
+  $("awText").textContent = "How well you ranked yourself. " + (r.aware === 100 ? "You put your categories in the best possible order for your results." : "You'd have scored " + r.best + " with the best order for these results; you scored " + r.total + ".");
   const rows = $("resRows"); rows.innerHTML = "";
   r.rounds.slice().reverse().forEach(x => {
     const d = document.createElement("div"); d.className = "row";
@@ -652,15 +695,26 @@ function renderResults(r){
     x.marks.forEach(m => { const i = document.createElement("i"); if(m) i.className = "on"; dots.appendChild(i); }); t.appendChild(dots);
     rows.appendChild(d);
   });
-  const sk = document.createElement("div"); sk.className = "row skip";
-  sk.innerHTML = '<div class="m">–</div><div class="t"></div><div class="s">Skipped</div>';
-  sk.querySelector(".t").textContent = r.skipped.rule; rows.appendChild(sk);
+  lastRes = r;
+  const sk = document.createElement("div"); sk.className = "row" + (r.bonus ? "" : " skip");
+  sk.innerHTML = '<div class="m'+(r.bonus ? ' star' : '')+'">'+(r.bonus ? "★" : "–")+'</div><div class="t"></div><div class="s">'+(r.bonus ? "Bonus" : "Skipped")+'</div>';
+  const skt = sk.querySelector(".t"); skt.textContent = r.skipped.rule;
+  if(r.bonus){
+    const sm = document.createElement("small"); sm.textContent = (FAMILY_EMOJI[r.skipped.fam] || "") + " " + r.skipped.fam + " · " + r.bonus.correct + "/6 · skipped"; skt.appendChild(sm);
+    const dots = document.createElement("div"); dots.className = "dots"; dots.setAttribute("aria-hidden","true");
+    r.bonus.marks.forEach(m => { const i = document.createElement("i"); if(m) i.className = "on"; dots.appendChild(i); }); skt.appendChild(dots);
+    const v = document.createElement("div"); v.className = "verdict"; v.textContent = verdict(r); skt.appendChild(v);
+  }
+  rows.appendChild(sk);
+  $("bonusCard").hidden = !!r.bonus;
+  $("bonusText").textContent = "Try " + r.skipped.rule + ", the category you skipped, to see if you were right to skip it. It won't change your score.";
   const n = unlockedCount();
   $("shareText").hidden = $("nextNote").hidden = !!r.practice;
   if(r.practice){
     $("resTitle").textContent = "Practice hand";
     $("feedbackP").hidden = true;
-    coach("Your <b>self-awareness</b> score compares your order with the best possible order for these results. The best score in a hand is 60. Ready for the real thing?");
+    coach(r.bonus ? "That's the whole game. Ready for the real thing?"
+      : "Your <b>self-awareness</b> score shows how well you ranked yourself. The best score in a hand is 60. You can also play the category you skipped as a bonus.");
     const cur = n - 1;
     bar([{label:"Home", ghost:true, onClick: renderHome},
          {label: store.results[cur] ? "Done" : "Play today's hand", onClick: () => store.results[cur] ? renderHome() : openDay(cur)}]);
@@ -672,6 +726,21 @@ function renderResults(r){
   bar([{label:"Home", ghost:true, onClick: renderHome},{label:"Share result", onClick: () => share(text)}]);
   show("results");
 }
+/* Was skipping the right call? Compare the bonus with the weakest round actually played */
+function verdict(r){
+  const b = r.bonus.correct;
+  const low = r.rounds.reduce((m, x) => x.correct < m.correct ? x : m, r.rounds[0]);   // ties go to the ×1 round
+  const name = low.rule.split(" → ")[0];
+  if(b > low.correct) return "Should have played it! " + b + "/6 beats your " + low.correct + "/6 on " + name + ".";
+  if(b === low.correct) return "A coin flip: level with your " + low.correct + "/6 on " + name + ".";
+  return "Good skip. It would have been your weakest round.";
+}
+function playBonus(){
+  const r = lastRes; if(!r) return;
+  if(!r.practice){ dayIdx = r.day; if(r.skipIdx === undefined) r.skipIdx = DAYS[r.day].findIndex(c => ruleOf(c) === r.skipped.rule); }
+  skip = r.practice ? skip : r.skipIdx;
+  bonus = true; readyRound();
+}
 async function share(text){
   if(navigator.share){ try{ await navigator.share({ text }); return; }catch(e){ if(e && e.name === "AbortError") return; } }
   try{ await navigator.clipboard.writeText(text); toast("Copied. Paste it in your group chat."); }
@@ -681,7 +750,7 @@ async function share(text){
 /* ---------- how to play ---------- */
 function openHow(){ $("howto").hidden = false; $("howClose").focus(); }
 function closeHow(){ $("howto").hidden = true; try{ localStorage.setItem(KEY+"_seen","1"); }catch(e){} }
-$("helpBtn").onclick = openHow; $("howClose").onclick = closeHow; $("howPractice").onclick = startTutorial;
+$("helpBtn").onclick = openHow; $("howClose").onclick = closeHow; $("howPractice").onclick = startTutorial; $("bonusBtn").onclick = playBonus;
 $("howto").addEventListener("click", e => { if(e.target.id === "howto") closeHow(); });
 document.addEventListener("keydown", e => { if(e.key === "Escape" && !$("howto").hidden) closeHow(); });
 
