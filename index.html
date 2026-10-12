@@ -702,7 +702,7 @@ function renderResults(r){
   });
   lastRes = r;
   const sk = document.createElement("div"); sk.className = "row" + (r.bonus ? "" : " skip");
-  sk.innerHTML = '<div class="m'+(r.bonus ? ' star' : '')+'">'+(r.bonus ? "★" : "–")+'</div><div class="t"></div><div class="s">'+(r.bonus ? "Bonus" : "Skipped")+'</div>';
+  sk.innerHTML = '<div class="m'+(r.bonus ? ' star' : '')+'">'+(r.bonus ? "★" : "–")+'</div><div class="t"></div><div class="s">'+(r.bonus ? "" : "Skipped")+'</div>';
   const skt = sk.querySelector(".t"); skt.textContent = r.skipped.rule;
   if(r.bonus){
     const sm = document.createElement("small"); sm.textContent = (FAMILY_EMOJI[r.skipped.fam] || "") + " " + r.skipped.fam + " · " + r.bonus.correct + "/6 · skipped"; skt.appendChild(sm);
