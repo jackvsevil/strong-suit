@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
+<title>Strong Suit</title>
+<meta name="description" content="A daily matching quiz. Skip the topic you know least, play the rest hardest first, and see how well you know yourself.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow column like a hand held in one palm; categories are playing cards, multipliers are card-corner indices. */
+:root{
+  --table:#E6EBF3; --card:#FFFFFF; --ink:#15213B; --muted:#5A6580; --line:#CDD5E3;
+  --back:#1E3B70; --back-2:#2C4F8E; --on-back:#FFFFFF;
+  --red:#C3192C; --amber:#A86A10; --good:#23764A; --bad:#B23A1F; --good-bg:#E4F2EA; --bad-bg:#F8E7E2;
+  --shadow:0 1px 0 rgba(21,33,59,.06),0 6px 18px -10px rgba(21,33,59,.35);
+  --display:"Young Serif",Georgia,"Times New Roman",serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
+  --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424;
+  --red:#FF6F7D; --amber:#F2B544; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
+  --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
+  --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424;
+  --red:#FF6F7D; --amber:#F2B544; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
+  --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--table);color:var(--ink);font:16px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--back-2);outline-offset:2px}
+a{color:var(--back-2)}
+.wrap{max-width:480px;margin:0 auto;padding-inline:16px;padding-block:12px 120px;min-height:100%}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:6px 14px}
+.brand{font:400 24px/1 var(--display);letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand .pip{color:var(--red);font-size:18px}
+.iconbtn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-weight:700;cursor:pointer}
+h1,h2{font-family:var(--display);font-weight:400;text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:34px;line-height:1.05}
+h2{font-size:26px;line-height:1.1}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.screen[hidden]{display:none!important}
+
+/* Bottom action bar */
+.bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to top,var(--table) 70%,transparent);padding:18px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.bar-inner{max-width:448px;margin:0 auto;display:flex;gap:10px}
+.btn{flex:1;min-height:54px;border-radius:14px;border:0;background:var(--back);color:var(--on-back);font-weight:700;font-size:17px;cursor:pointer;padding:0 18px}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);flex:0 0 auto}
+
+/* Card back (hero) */
+.fan{position:relative;height:190px;margin:8px auto 28px;width:100%;max-width:340px}
+.fan .cb{position:absolute;left:50%;bottom:0;width:104px;height:150px;margin-left:-52px;border-radius:12px;border:5px solid var(--card);
+  background:repeating-linear-gradient(45deg,var(--back) 0 7px,var(--back-2) 7px 9px),var(--back);box-shadow:var(--shadow);transform-origin:50% 120%}
+.fan .cb:nth-child(1){transform:rotate(-24deg)} .fan .cb:nth-child(2){transform:rotate(-12deg)} .fan .cb:nth-child(3){transform:rotate(0)}
+.fan .cb:nth-child(4){transform:rotate(12deg)} .fan .cb:nth-child(5){transform:rotate(24deg)}
+.fan .cb:nth-child(3)::after{content:"♠";position:absolute;inset:0;display:grid;place-items:center;font:400 46px var(--display);color:var(--on-back);opacity:.95}
+.hero{text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.hero .date{font-weight:600;color:var(--muted);font-size:15px}
+
+/* Archive */
+.days{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.day{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;min-height:68px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.day b{font:400 20px/1 var(--display)}
+.day span{font-size:12px;color:var(--muted)}
+.day[disabled]{opacity:.5;cursor:not-allowed}
+.day.current{border-color:var(--back-2);box-shadow:inset 0 0 0 1px var(--back-2)}
+.section-title{font-weight:700;font-size:15px}
+
+/* Category cards */
+.hand{display:flex;flex-direction:column;gap:10px}
+.cat{position:relative;display:grid;grid-template-columns:52px 1fr;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 14px 10px;box-shadow:var(--shadow);cursor:pointer;text-align:left;width:100%;transition:transform .15s,opacity .15s}
+.cat:active{transform:scale(.99)}
+.index{width:52px;height:64px;border-radius:9px;border:1.5px dashed var(--line);display:grid;place-items:center;font:400 26px/1 var(--display);color:var(--muted)}
+.cat.ranked .index{border:0;background:var(--table)}
+.index small{font-size:15px;margin-right:1px}
+.cat .fam,#rFam{font-size:13px;color:var(--muted);font-weight:600}
+.emo{font-size:17px;margin-right:6px;vertical-align:-2px}
+.cat .rule{font-weight:700;font-size:17px;line-height:1.25}
+.cat.skipped{opacity:.45;box-shadow:none}
+.cat.skipped .index{border-style:solid;color:var(--muted);font:700 13px/1 var(--body)}
+.cat.picked{border-color:var(--back-2);box-shadow:inset 0 0 0 2px var(--back-2),var(--shadow)}
+.step{display:flex;gap:8px;align-items:baseline}
+.step b{font-family:var(--display);font-weight:400;font-size:20px;color:var(--red)}
+.deal .cat{animation:deal .38s cubic-bezier(.2,.8,.2,1) backwards}
+.deal .cat:nth-child(2){animation-delay:.05s}.deal .cat:nth-child(3){animation-delay:.1s}.deal .cat:nth-child(4){animation-delay:.15s}.deal .cat:nth-child(5){animation-delay:.2s}
+@keyframes deal{from{transform:translateY(18px) rotate(-2deg);opacity:0}}
+
+/* Ready */
+.ready{min-height:70vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:18px}
+.bigmult{font:400 96px/1 var(--display);color:var(--red)}
+.bigmult small{font-size:56px}
+.count{font:400 56px/1 var(--display)}
+
+/* Round */
+.roundhead{position:sticky;top:env(safe-area-inset-top,0px);background:var(--table);padding-block:8px 10px;z-index:2;display:flex;flex-direction:column;gap:8px}
+.rh-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.rh-row .rule{font-weight:700;font-size:18px;line-height:1.25}
+.chipmult{flex:0 0 auto;font:400 22px/1 var(--display);color:var(--red);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.timer{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.timer i{display:block;height:100%;width:100%;background:var(--back-2);transform-origin:left;transition:transform .25s linear}
+.timer.low i{background:var(--red)}
+.secs{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:var(--muted)}
+.pairs{display:flex;flex-direction:column;gap:8px}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:stretch}
+.prompt{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:600;display:flex;align-items:center;min-width:0;overflow-wrap:anywhere}
+.slot{border-radius:12px;border:1.5px dashed var(--line);background:transparent;padding:10px 12px;text-align:left;cursor:pointer;min-height:48px;color:var(--muted);overflow-wrap:anywhere}
+.slot.filled{border-style:solid;border-color:var(--back-2);background:var(--card);color:var(--ink);font-weight:600}
+.slot.sel{border-color:var(--red);border-style:solid;box-shadow:inset 0 0 0 1px var(--red)}
+.pool{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:10px 14px;cursor:pointer;font-weight:600;box-shadow:var(--shadow);max-width:100%;overflow-wrap:anywhere;text-align:left}
+.chip[hidden]{display:none}
+.hint{font-size:14px;color:var(--muted)}
+
+/* Reveal */
+.res{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.res .mark{font-weight:800;font-size:18px;line-height:1.3;text-align:center;border-radius:6px}
+.res.ok .mark{color:var(--good)} .res.no .mark{color:var(--bad)}
+.res.ok{background:var(--good-bg)} .res.no{background:var(--bad-bg)}
+.res .p{font-weight:600}
+.res .a{font-size:15px}
+.res s{color:var(--muted)}
+.score{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.score b{font:400 44px/1 var(--display)}
+.score span{color:var(--muted);font-weight:600}
+.fact{border-left:4px solid var(--red);background:var(--card);border-radius:4px 12px 12px 4px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.fact .lbl{font-weight:700;font-size:14px;color:var(--red)}
+.fact a{font-size:13px}
+
+/* Results */
+.total{text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center}
+.total .num{font:400 72px/1 var(--display)}
+.total .num small{font-size:32px;color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.row .m{font:400 22px/1 var(--display);color:var(--red)}
+.row .t{font-weight:600;min-width:0}
+.row .t small{display:block;color:var(--muted);font-weight:500}
+.row .s{font-variant-numeric:tabular-nums;font-weight:700}
+.row.skip{opacity:.6}
+.dots{display:flex;gap:3px;margin-top:4px}
+.dots i{width:10px;height:10px;border-radius:3px;background:var(--line)}
+.dots i.on{background:var(--good)}
+.aware{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+.aware .pct{grid-row:span 2;font:400 40px/1 var(--display);color:var(--back-2)}
+.aware b{font-size:16px}
+.sharebox{font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;width:100%;resize:none;color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--table);padding:10px 16px;border-radius:999px;font-weight:600;font-size:14px;z-index:20}
+
+/* How to play */
+.modal{position:fixed;inset:0;background:rgba(10,16,30,.55);display:grid;place-items:end center;z-index:30;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.sheet{background:var(--card);border-radius:20px;max-width:448px;width:100%;padding:22px 20px 18px;display:flex;flex-direction:column;gap:14px;max-height:88vh;overflow:auto}
+.rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;counter-reset:r}
+.rules li{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start}
+.rules li::before{counter-increment:r;content:counter(r);font:400 22px/1.2 var(--display);color:var(--red);text-align:center}
+.example{display:flex;gap:6px;flex-wrap:wrap;font:400 18px/1 var(--display)}
+.example span{background:var(--table);color:var(--red);border-radius:8px;padding:6px 8px}
+@media (min-width:700px){.modal{place-items:center}}
+/* multiplier colours: stakes rise from blue to green to amber to red */
+.mx1{color:var(--back-2)!important}.mx2{color:var(--good)!important}.mx3{color:var(--amber)!important}.mx4{color:var(--red)!important}
+.dragghost{position:fixed;z-index:50;pointer-events:none;transform:rotate(-3deg) scale(1.04);opacity:.95;box-shadow:0 12px 28px -8px rgba(10,16,30,.45)}
+.slot.over{border-color:var(--red);border-style:solid;background:var(--card)}
+.chip,.slot.filled{touch-action:none;user-select:none;-webkit-user-select:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="top">
+    <div class="brand"><span class="pip" aria-hidden="true">♦</span>Strong Suit</div>
+    <button class="iconbtn" id="helpBtn" aria-label="How to play">?</button>
+  </header>
+
+  <!-- HOME -->
+  <section class="screen stack" id="home">
+    <div class="hero">
+      <div class="fan" aria-hidden="true"><div class="cb"></div><div class="cb"></div><div class="cb"></div><div class="cb"></div><div class="cb"></div></div>
+      <h1 id="homeTitle">Hand #1</h1>
+      <p class="date" id="homeDate"></p>
+      <p class="muted" id="homeSub">Five categories. Skip one, play the rest hardest first.</p>
+    </div>
+    <div class="stack">
+      <p class="section-title">Prototype hands</p>
+      <div class="days" id="days"></div>
+      <p class="small muted" id="unlockNote">A new hand unlocks each day.</p>
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section class="screen stack" id="setup" hidden>
+    <div class="stack" style="gap:6px">
+      <h2 id="setupTitle">Rank your hand, strongest first</h2>
+      <p class="muted" id="setupSub">Your fifth card is skipped. You'll play weakest first, for ×1, up to your strongest, for ×4.</p>
+    </div>
+    <div class="hand" id="hand"></div>
+  </section>
+
+  <!-- READY -->
+  <section class="screen ready" id="ready" hidden>
+    <p class="muted" id="readyRound">Round 1 of 4</p>
+    <div class="bigmult" id="readyMult"><small>×</small>1</div>
+    <h2 id="readyRule"></h2>
+    <div class="count" id="readyCount" aria-live="polite">3</div>
+  </section>
+
+  <!-- ROUND -->
+  <section class="screen stack" id="round" hidden>
+    <div class="roundhead">
+      <div class="rh-row"><div><p class="small muted" id="rFam"></p><p class="rule" id="rRule"></p></div><div class="chipmult" id="rMult">×1</div></div>
+      <div class="timer" id="timer"><i id="timerBar"></i></div>
+      <div class="rh-row"><span class="secs" id="secs">30s</span><span class="hint">Tap or drag to match</span></div>
+    </div>
+    <div class="pairs" id="pairs"></div>
+    <div class="pool" id="pool" aria-label="Answers"></div>
+  </section>
+
+  <!-- REVEAL -->
+  <section class="screen stack" id="reveal" hidden>
+    <div class="score"><b id="revScore">0/6</b><span id="revCalc"></span></div>
+    <p class="small muted" id="revRule"></p>
+    <div class="pairs" id="revList"></div>
+    <div class="fact" id="fact"><span class="lbl">Did you know?</span><p id="factText"></p><a id="factSrc" target="_blank" rel="noopener">Source</a></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="screen stack" id="results" hidden>
+    <div class="total"><p class="muted" id="resTitle">Hand #1</p><div class="num" id="resNum">0<small>/60</small></div></div>
+    <div class="aware"><div class="pct" id="awPct">100%</div><b>Self-awareness</b><p class="small muted" id="awText"></p></div>
+    <div class="rows" id="resRows"></div>
+    <textarea class="sharebox" id="shareText" rows="8" readonly aria-label="Your result to share"></textarea>
+    <p class="small muted" id="nextNote"></p>
+    <p class="small" id="feedbackP" hidden><a id="feedbackLink" target="_blank" rel="noopener">Tell us what you thought</a></p>
+  </section>
+</div>
+
+<div class="bar" id="bar"><div class="bar-inner" id="barInner"></div></div>
+
+<div class="modal" id="howto" hidden role="dialog" aria-modal="true" aria-labelledby="howTitle">
+  <div class="sheet">
+    <h2 id="howTitle">How to play</h2>
+    <ol class="rules">
+      <li><p>You're dealt <b>five categories</b>. Tap them from <b>strongest to weakest</b>. You'll skip your weakest!</p></li>
+      <li><p>You play the other four from weakest to strongest, and each round is worth more than the last.</p><div class="example" style="grid-column:2"><span class="mx1">×1</span><span class="mx2">×2</span><span class="mx3">×3</span><span class="mx4">×4</span></div></li>
+      <li><p>Each round, <b>match six pairs in 30 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
+      <li><p>The best possible score is <b>60</b>. Your <b>self-awareness</b> shows how close your order was to the best order for your results.</p></li>
+    </ol>
+    <button class="btn" id="howClose">Got it</button>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const FEEDBACK_URL = ""; // paste a Google Form link here to show a feedback link on the results screen
+const ROUND_SECONDS = 30;
+const FAMILY_EMOJI = {"Film & TV":"🎬","Music":"🎵","Sport":"⚽","Geography":"🌍","History":"📜","Science & Nature":"🔬","Food & Drink":"🍽️","Language":"🔤","Art & Literature":"🎨","Pop Culture":"✨"};
+const WP = t => "https://en.wikipedia.org/wiki/" + t;
+
+const DAYS = [
+ [
+  {fam:"Film & TV", a:"Bond villain", b:"their film", pairs:[["Le Chiffre","Casino Royale"],["Raoul Silva","Skyfall"],["Alec Trevelyan","GoldenEye"],["Max Zorin","A View to a Kill"],["Elliot Carver","Tomorrow Never Dies"],["Karl Stromberg","The Spy Who Loved Me"]],
+   fact:"Max Zorin was played by Christopher Walken, opposite Roger Moore in his final outing as Bond.", src:WP("A_View_to_a_Kill")},
+  {fam:"Geography", a:"River", b:"country", pairs:[["Loire","France"],["Shannon","Ireland"],["Po","Italy"],["Murray","Australia"],["Vistula","Poland"],["Shinano","Japan"]],
+   fact:"The Shinano is Japan's longest river, at about 367 km.", src:WP("Shinano_River")},
+  {fam:"Science & Nature", a:"Element", b:"symbol", pairs:[["Gold","Au"],["Iron","Fe"],["Sodium","Na"],["Lead","Pb"],["Tungsten","W"],["Antimony","Sb"]],
+   fact:"Tungsten's symbol, W, comes from its other name: wolfram.", src:WP("Tungsten")},
+  {fam:"Music", a:"90s British album", b:"artist", pairs:[["OK Computer","Radiohead"],["Different Class","Pulp"],["Blue Lines","Massive Attack"],["Parklife","Blur"],["(What's the Story) Morning Glory?","Oasis"],["Dummy","Portishead"]],
+   fact:"Blue Lines (1991), by Bristol's Massive Attack, is often credited with launching trip-hop.", src:WP("Blue_Lines")},
+  {fam:"Food & Drink", a:"Pasta shape", b:"what the name means", pairs:[["Farfalle","butterflies"],["Conchiglie","shells"],["Penne","quills"],["Linguine","little tongues"],["Orecchiette","little ears"],["Vermicelli","little worms"]],
+   fact:"Orecchiette come from Puglia, the heel of Italy's boot.", src:WP("Orecchiette")}
+ ],
+ [
+  {fam:"Film & TV", a:"Sitcom", b:"where it's set", pairs:[["Frasier","Seattle"],["Cheers","Boston"],["Fawlty Towers","Torquay"],["Only Fools and Horses","Peckham"],["The Office (UK)","Slough"],["Peep Show","Croydon"]],
+   fact:"Basil Fawlty was based on a real Torquay hotelier the Monty Python team met while staying at his hotel in 1970.", src:WP("Fawlty_Towers")},
+  {fam:"History", a:"Battle", b:"war", pairs:[["Waterloo","Napoleonic Wars"],["Gettysburg","American Civil War"],["Stalingrad","Second World War"],["The Somme","First World War"],["Bosworth","Wars of the Roses"],["Agincourt","Hundred Years' War"]],
+   fact:"The Hundred Years' War lasted 116 years, from 1337 to 1453.", src:WP("Hundred_Years%27_War")},
+  {fam:"Science & Nature", a:"Animal", b:"collective noun", pairs:[["Lions","pride"],["Crows","murder"],["Owls","parliament"],["Flamingos","flamboyance"],["Rhinos","crash"],["Jellyfish","smack"]],
+   fact:"Many collective nouns for animals were first recorded in the Book of St Albans, printed in 1486.", src:WP("Book_of_St_Albans")},
+  {fam:"Sport", a:"Football stadium", b:"club", pairs:[["Anfield","Liverpool"],["Camp Nou","Barcelona"],["Santiago Bernabéu","Real Madrid"],["Signal Iduna Park","Borussia Dortmund"],["Estádio da Luz","Benfica"],["La Bombonera","Boca Juniors"]],
+   fact:"La Bombonera means 'the chocolate box' in Spanish, after the stadium's tall, boxy shape.", src:WP("La_Bombonera")},
+  {fam:"Language", a:"English word", b:"language it came from", pairs:[["Kindergarten","German"],["Robot","Czech"],["Algebra","Arabic"],["Kayak","Inuit"],["Shampoo","Hindi"],["Ombudsman","Swedish"]],
+   fact:"'Robot' comes from the Czech robota, meaning forced labour. It first appeared in Karel Čapek's 1920 play R.U.R.", src:WP("R.U.R.")}
+ ],
+ [
+  {fam:"Film & TV", a:"Thriller or horror film", b:"director", pairs:[["Jaws","Steven Spielberg"],["Psycho (1960)","Alfred Hitchcock"],["The Shining","Stanley Kubrick"],["Parasite","Bong Joon-ho"],["Se7en","David Fincher"],["Get Out","Jordan Peele"]],
+   fact:"The mechanical shark in Jaws was nicknamed Bruce, after Spielberg's lawyer.", src:WP("Jaws_(film)")},
+  {fam:"Sport", a:"Sport", b:"players per side", pairs:[["Basketball","5"],["Volleyball","6"],["Netball","7"],["Baseball","9"],["Rugby league","13"],["Rugby union","15"]],
+   fact:"Basketball was invented in 1891 by James Naismith, a Canadian teacher working in Massachusetts.", src:WP("James_Naismith")},
+  {fam:"Geography", a:"20th-century landmark", b:"city", pairs:[["Christ the Redeemer","Rio de Janeiro"],["Petronas Towers","Kuala Lumpur"],["Space Needle","Seattle"],["Atomium","Brussels"],["Burj Al Arab","Dubai"],["CN Tower","Toronto"]],
+   fact:"The Atomium was built for the 1958 World's Fair in Brussels.", src:WP("Atomium")},
+  {fam:"Art & Literature", a:"19th-century painting", b:"artist", pairs:[["The Hay Wain","John Constable"],["The Starry Night","Vincent van Gogh"],["The Scream","Edvard Munch"],["The Fighting Temeraire","J. M. W. Turner"],["Impression, Sunrise","Claude Monet"],["Liberty Leading the People","Eugène Delacroix"]],
+   fact:"The cottage on the left of The Hay Wain (1821) still stands, almost unchanged, at Flatford in Suffolk.", src:WP("The_Hay_Wain")},
+  {fam:"Science & Nature", a:"Moon", b:"the world it orbits", pairs:[["Titan","Saturn"],["Europa","Jupiter"],["Phobos","Mars"],["Charon","Pluto"],["Triton","Neptune"],["Miranda","Uranus"]],
+   fact:"Titan is the only moon in the solar system with a thick atmosphere.", src:WP("Titan_(moon)")}
+ ],
+ [
+  {fam:"Film & TV", a:"TV drama character", b:"show", pairs:[["Walter White","Breaking Bad"],["Jon Snow","Game of Thrones"],["Tony Soprano","The Sopranos"],["Don Draper","Mad Men"],["Omar Little","The Wire"],["Carrie Mathison","Homeland"]],
+   fact:"Bryan Cranston won four Emmys for playing Walter White in Breaking Bad.", src:WP("Bryan_Cranston")},
+  {fam:"History", a:"Monarch", b:"royal house", pairs:[["Henry VIII","Tudor"],["Elizabeth II","Windsor"],["Victoria","Hanover"],["Charles I","Stuart"],["Richard III","York"],["Edward VII","Saxe-Coburg and Gotha"]],
+   fact:"The royal house was called Saxe-Coburg and Gotha until 1917, when George V renamed it Windsor during the First World War.", src:WP("House_of_Windsor")},
+  {fam:"Music", a:"Musical", b:"composer", pairs:[["Cats","Andrew Lloyd Webber"],["Hamilton","Lin-Manuel Miranda"],["West Side Story","Leonard Bernstein"],["Les Misérables","Claude-Michel Schönberg"],["Wicked","Stephen Schwartz"],["Matilda","Tim Minchin"]],
+   fact:"Les Misérables began as a French show in Paris in 1980, five years before the London production opened.", src:WP("Les_Mis%C3%A9rables_(musical)")},
+  {fam:"Food & Drink", a:"Cocktail", b:"base spirit", pairs:[["Mojito","rum"],["Margarita","tequila"],["Negroni","gin"],["Moscow Mule","vodka"],["Old Fashioned","whiskey"],["Sidecar","brandy"]],
+   fact:"The Negroni is said to be named after Count Camillo Negroni, who asked for gin instead of soda water in his Americano.", src:WP("Negroni")},
+  {fam:"Geography", a:"Country", b:"currency", pairs:[["Japan","yen"],["India","rupee"],["Switzerland","franc"],["Brazil","real"],["South Africa","rand"],["Poland","złoty"]],
+   fact:"Złoty means 'golden' in Polish.", src:WP("Polish_z%C5%82oty")}
+ ]
+];
+
+/* ---------- storage (best effort) ---------- */
+const KEY = "strongsuit_v1";
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){} }
+let store = load();
+store.results = store.results || {};
+
+/* ---------- dates ---------- */
+function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function parseYmd(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+const today = new Date(); const todayStr = ymd(today);
+if(!store.first){ store.first = todayStr; save(); }
+const unlockAll = location.hash === "#all";
+function daysSinceFirst(){ return Math.round((parseYmd(todayStr) - parseYmd(store.first)) / 86400000); }
+function unlockedCount(){ return unlockAll ? DAYS.length : Math.min(DAYS.length, daysSinceFirst() + 1); }
+function unlockDate(i){ const d = parseYmd(store.first); d.setDate(d.getDate()+i); return d; }
+const fmtDay = d => d.toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short"});
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function show(id){ ["home","setup","ready","round","reveal","results"].forEach(s => $(s).hidden = s !== id); window.scrollTo(0,0); }
+function bar(buttons){ const b=$("barInner"); b.innerHTML=""; $("bar").hidden = !buttons.length;
+  buttons.forEach(o => { const el=document.createElement("button"); el.className="btn"+(o.ghost?" ghost":""); el.textContent=o.label; el.id=o.id||""; el.disabled=!!o.disabled; el.onclick=o.onClick; b.appendChild(el); }); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const ruleOf = c => c.a + " → " + c.b;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2200); }
+
+/* ---------- state ---------- */
+let dayIdx = 0, skip = null, order = [], roundNo = 0, roundState = null, timerId = null, scores = [];
+
+/* ---------- home ---------- */
+function renderHome(){
+  const n = unlockedCount();
+  dayIdx = Math.min(dayIdx || n-1, n-1);
+  const cur = n-1;
+  $("homeTitle").textContent = "Hand #" + (cur+1);
+  $("homeDate").textContent = fmtDay(today);
+  const done = store.results[cur];
+  $("homeSub").textContent = done ? "You've played today's hand. Come back tomorrow for the next one." : "Five categories. Skip one, play the rest hardest first.";
+  const days = $("days"); days.innerHTML = "";
+  DAYS.forEach((_, i) => {
+    const b = document.createElement("button"); b.className = "day" + (i===cur ? " current" : "");
+    const r = store.results[i];
+    b.innerHTML = "<b>#"+(i+1)+"</b><span>"+(r ? r.total+"/60" : (i < n ? "Play" : "Opens "+fmtDay(unlockDate(i)).replace(/^\w+ /,"")))+"</span>";
+    if(i >= n){ b.disabled = true; b.setAttribute("aria-label","Hand "+(i+1)+", opens "+fmtDay(unlockDate(i))); }
+    else b.onclick = () => openDay(i);
+    days.appendChild(b);
+  });
+  $("unlockNote").textContent = n < DAYS.length ? "A new hand unlocks each day. This prototype has four." : "That's all four prototype hands. Thanks for playing.";
+  bar([{label: done ? "See today's result" : "Play hand #"+(cur+1), onClick: () => openDay(cur)}]);
+  show("home");
+}
+function openDay(i){
+  dayIdx = i;
+  if(store.results[i]) return renderResults(store.results[i]);
+  skip = null; order = []; ranked = []; scores = []; roundNo = 0;
+  renderSetup(true);
+}
+
+/* ---------- setup: one tap per card, strongest first; the card left over is skipped ---------- */
+let ranked = [];   // card indexes, strongest first
+const famLabel = f => '<span class="emo" aria-hidden="true">'+(FAMILY_EMOJI[f]||"")+'</span>'+f;
+function renderSetup(animate){
+  const cats = DAYS[dayIdx];
+  const left = ranked.length === 4 ? cats.findIndex((_, i) => !ranked.includes(i)) : null;
+  const hand = $("hand"); hand.innerHTML = ""; hand.classList.toggle("deal", !!animate);
+  cats.forEach((c, i) => {
+    const b = document.createElement("button"); b.className = "cat";
+    const pos = ranked.indexOf(i), mult = pos > -1 ? 4 - pos : null;
+    if(mult) b.classList.add("ranked");
+    if(i === left) b.classList.add("skipped");
+    const idx = i === left ? "Skip" : (mult ? "<span><small>×</small>"+mult+"</span>" : "");
+    b.innerHTML = '<div class="index'+(mult?' mx'+mult:'')+'" aria-hidden="true">'+idx+'</div><div><div class="fam">'+famLabel(c.fam)+'</div><div class="rule">'+ruleOf(c)+'</div></div>';
+    b.setAttribute("aria-label", c.fam+": "+ruleOf(c)+(i===left?", skipped":"")+(mult?", times "+mult:""));
+    b.onclick = () => {
+      if(pos > -1) ranked.splice(pos, 1);
+      else if(ranked.length < 4) ranked.push(i);
+      else { ranked[3] = i; }   // tapping the skipped card swaps it in for your weakest pick
+      renderSetup();
+    };
+    hand.appendChild(b);
+  });
+  bar([{label:"Back", ghost:true, onClick: renderHome},
+       {label: ranked.length < 4 ? (4 - ranked.length) + " more to rank" : "Deal (skip " + cats[left].a + ")", disabled: ranked.length < 4, onClick: startGame}]);
+  show("setup");
+}
+
+/* ---------- game ---------- */
+function startGame(){
+  const cats = DAYS[dayIdx];
+  skip = cats.findIndex((_, i) => !ranked.includes(i));
+  order = ranked.slice().reverse();   // play weakest (×1) first
+  roundNo = 0; scores = []; readyRound();
+}
+function readyRound(){
+  const c = DAYS[dayIdx][order[roundNo]];
+  $("readyRound").textContent = "Round " + (roundNo+1) + " of 4";
+  $("readyMult").innerHTML = "<small>×</small>" + (roundNo+1); $("readyMult").className = "bigmult mx" + (roundNo+1);
+  $("readyRule").textContent = ruleOf(c);
+  bar([]); show("ready");
+  let n = 3; $("readyCount").textContent = n;
+  const t = setInterval(() => { n--; if(n <= 0){ clearInterval(t); startRound(); } else $("readyCount").textContent = n; }, 800);
+}
+function startRound(){
+  const c = DAYS[dayIdx][order[roundNo]];
+  roundState = { cat:c, answers:Array(6).fill(null), sel:0, pool:shuffle(c.pairs.map(p=>p[1])), end: Date.now() + ROUND_SECONDS*1000 };
+  $("rFam").innerHTML = famLabel(c.fam); $("rRule").textContent = ruleOf(c); $("rMult").textContent = "×" + (roundNo+1); $("rMult").className = "chipmult mx" + (roundNo+1);
+  renderRound(); show("round");
+  clearInterval(timerId); timerId = setInterval(tick, 200); tick();
+}
+function tick(){
+  const left = Math.max(0, roundState.end - Date.now());
+  const s = Math.ceil(left/1000);
+  $("secs").textContent = s + "s";
+  $("timerBar").style.transform = "scaleX(" + (left/(ROUND_SECONDS*1000)) + ")";
+  $("timer").classList.toggle("low", s <= 10);
+  if(left <= 0) submitRound();
+}
+function renderRound(){
+  const st = roundState, pairs = $("pairs"); pairs.innerHTML = "";
+  st.cat.pairs.forEach((p, i) => {
+    const row = document.createElement("div"); row.className = "pair";
+    const pr = document.createElement("div"); pr.className = "prompt"; pr.textContent = p[0];
+    const sl = document.createElement("button"); sl.className = "slot" + (st.answers[i] ? " filled" : "") + (st.sel === i ? " sel" : "");
+    sl.textContent = st.answers[i] || (st.sel === i ? "Pick an answer" : "…");
+    sl.setAttribute("aria-label", p[0] + ": " + (st.answers[i] || "no answer yet"));
+    sl.dataset.slot = i;
+    sl.onclick = () => { if(dragJustEnded) return; if(st.answers[i]){ st.answers[i] = null; } st.sel = i; renderRound(); };
+    if(st.answers[i]) makeDraggable(sl, {slot:i});
+    row.append(pr, sl); pairs.appendChild(row);
+  });
+  const pool = $("pool"); pool.innerHTML = "";
+  st.pool.forEach(a => {
+    const ch = document.createElement("button"); ch.className = "chip"; ch.textContent = a; ch.hidden = st.answers.includes(a);
+    makeDraggable(ch, {answer:a});
+    ch.onclick = () => {
+      if(dragJustEnded) return;
+      if(st.sel === null) st.sel = st.answers.indexOf(null);
+      if(st.sel === -1 || st.sel === null) return;
+      st.answers[st.sel] = a;
+      const next = st.answers.findIndex((x, k) => x === null && k > st.sel);
+      st.sel = next > -1 ? next : st.answers.indexOf(null);
+      if(st.sel === -1) st.sel = null;
+      renderRound();
+    };
+    pool.appendChild(ch);
+  });
+  const filled = st.answers.filter(Boolean).length;
+  bar([{label: filled < 6 ? filled + " of 6 matched" : "Lock in", disabled: filled < 6, onClick: submitRound}]);
+}
+/* ---------- drag and drop (mouse, pen and touch) ---------- */
+let drag = null, dragJustEnded = false;
+function makeDraggable(el, src){
+  el.addEventListener("pointerdown", e => {
+    if(e.button > 0 || roundState.done) return;
+    drag = { el, src, x0:e.clientX, y0:e.clientY, ghost:null };
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  el.addEventListener("pointermove", e => {
+    if(!drag || drag.el !== el) return;
+    if(!drag.ghost){
+      if(Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+      const r = el.getBoundingClientRect(), g = el.cloneNode(true);
+      g.classList.add("dragghost"); g.classList.remove("sel"); g.style.width = r.width + "px";
+      g.dx = drag.x0 - r.left; g.dy = drag.y0 - r.top;
+      document.body.appendChild(g); drag.ghost = g; el.style.opacity = ".35";
+    }
+    const g = drag.ghost; g.style.left = (e.clientX - g.dx) + "px"; g.style.top = (e.clientY - g.dy) + "px";
+    document.querySelectorAll(".slot.over").forEach(x => x.classList.remove("over"));
+    const t = dropTarget(e); if(t && t.dataset.slot !== undefined) t.classList.add("over");
+  });
+  const end = (e, cancelled) => {
+    if(!drag || drag.el !== el) return;
+    const d = drag; drag = null;
+    if(!d.ghost) return;               // a plain tap: let the click handler deal with it
+    d.ghost.remove(); el.style.opacity = "";
+    document.querySelectorAll(".slot.over").forEach(x => x.classList.remove("over"));
+    dragJustEnded = true; setTimeout(() => dragJustEnded = false, 0);
+    if(!cancelled) dropOn(d.src, dropTarget(e));
+  };
+  el.addEventListener("pointerup", e => end(e, false));
+  el.addEventListener("pointercancel", e => end(e, true));
+}
+function dropTarget(e){ const hit = document.elementFromPoint(e.clientX, e.clientY); return hit ? hit.closest("[data-slot], #pool") : null; }
+function dropOn(src, target){
+  const st = roundState; if(!st || st.done) return;
+  if(target && target.dataset.slot !== undefined){
+    const i = +target.dataset.slot;
+    if(src.answer !== undefined) st.answers[i] = src.answer;                  // pool → slot (replaces anything there)
+    else if(src.slot !== i){ const tmp = st.answers[i]; st.answers[i] = st.answers[src.slot]; st.answers[src.slot] = tmp; } // slot ↔ slot swap
+  } else if(src.slot !== undefined){
+    st.answers[src.slot] = null;                                              // slot dragged off: back to the pool
+  }
+  const empty = st.answers.indexOf(null); st.sel = empty === -1 ? null : empty;
+  renderRound();
+}
+
+function submitRound(){
+  if(!roundState || roundState.done) return;
+  roundState.done = true; clearInterval(timerId);
+  const c = roundState.cat;
+  const marks = c.pairs.map((p, i) => roundState.answers[i] === p[1]);
+  const correct = marks.filter(Boolean).length, mult = roundNo + 1;
+  scores.push({ fam:c.fam, rule:ruleOf(c), correct, mult, marks });
+  $("revScore").textContent = correct + "/6";
+  $("revCalc").textContent = "× " + mult + " = " + (correct*mult) + " points";
+  $("revRule").textContent = ruleOf(c);
+  const list = $("revList"); list.innerHTML = "";
+  c.pairs.forEach((p, i) => {
+    const ok = marks[i], your = roundState.answers[i];
+    const d = document.createElement("div"); d.className = "res " + (ok ? "ok" : "no");
+    d.innerHTML = '<div class="mark" aria-label="'+(ok?"Correct":"Wrong")+'">'+(ok?"✓":"✕")+'</div><div><div class="p"></div><div class="a"></div></div>';
+    d.querySelector(".p").textContent = p[0];
+    const a = d.querySelector(".a");
+    if(ok) a.textContent = p[1];
+    else { const s = document.createElement("s"); s.textContent = your || "no answer"; a.append(s, " " + p[1]); }
+    list.appendChild(d);
+  });
+  $("factText").textContent = c.fact; $("factSrc").href = c.src;
+  const last = roundNo === 3;
+  bar([{label: last ? "See your results" : "Next: ×" + (roundNo+2) + " " + DAYS[dayIdx][order[roundNo+1]].a, onClick: () => { if(last) finish(); else { roundNo++; readyRound(); } }}]);
+  show("reveal");
+}
+
+/* ---------- results ---------- */
+function finish(){
+  const total = scores.reduce((s, r) => s + r.correct*r.mult, 0);
+  const sorted = scores.map(r => r.correct).sort((a,b) => a-b);
+  const best = sorted.reduce((s, v, i) => s + v*(i+1), 0);
+  const aware = best === 0 ? 100 : Math.round(total/best*100);
+  const skipped = DAYS[dayIdx][skip];
+  const res = { day:dayIdx, total, best, aware, rounds:scores, skipped:{fam:skipped.fam, rule:ruleOf(skipped)} };
+  store.results[dayIdx] = res; save();
+  renderResults(res);
+}
+function shareText(r){
+  const lines = ["Strong Suit #" + (r.day+1) + " · " + r.total + "/60"];
+  r.rounds.slice().reverse().forEach(x => lines.push("×" + x.mult + " " + (FAMILY_EMOJI[x.fam]||"") + " " + x.marks.map(m => m ? "🟩" : "⬜").join("")));
+  lines.push("⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " skipped " + r.skipped.rule.split(" → ")[0]);
+  lines.push("🎯 Self-awareness " + r.aware + "%");
+  lines.push(location.origin + location.pathname);
+  return lines.join("\n");
+}
+function renderResults(r){
+  $("resTitle").textContent = "Hand #" + (r.day+1);
+  $("resNum").innerHTML = r.total + "<small>/60</small>";
+  $("awPct").textContent = r.aware + "%";
+  $("awText").textContent = r.aware === 100 ? "You put your hardest category first and your easiest last. Perfect read on yourself." : "With these results, the best possible order would have scored " + r.best + ". You scored " + r.total + ".";
+  const rows = $("resRows"); rows.innerHTML = "";
+  r.rounds.slice().reverse().forEach(x => {
+    const d = document.createElement("div"); d.className = "row";
+    d.innerHTML = '<div class="m mx'+x.mult+'">×'+x.mult+'</div><div class="t"></div><div class="s">'+(x.correct*x.mult)+'</div>';
+    const t = d.querySelector(".t"); t.textContent = x.rule;
+    const sm = document.createElement("small"); sm.textContent = (FAMILY_EMOJI[x.fam] || "") + " " + x.fam + " · " + x.correct + "/6"; t.appendChild(sm);
+    const dots = document.createElement("div"); dots.className = "dots"; dots.setAttribute("aria-hidden","true");
+    x.marks.forEach(m => { const i = document.createElement("i"); if(m) i.className = "on"; dots.appendChild(i); }); t.appendChild(dots);
+    rows.appendChild(d);
+  });
+  const sk = document.createElement("div"); sk.className = "row skip";
+  sk.innerHTML = '<div class="m">–</div><div class="t"></div><div class="s">Skipped</div>';
+  sk.querySelector(".t").textContent = r.skipped.rule; rows.appendChild(sk);
+  const text = shareText(r); $("shareText").value = text;
+  const n = unlockedCount();
+  $("nextNote").textContent = n < DAYS.length ? "Next hand opens " + fmtDay(unlockDate(n)) + "." : "That's every prototype hand for now.";
+  if(FEEDBACK_URL){ $("feedbackLink").href = FEEDBACK_URL; $("feedbackP").hidden = false; }
+  bar([{label:"Home", ghost:true, onClick: renderHome},{label:"Share result", onClick: () => share(text)}]);
+  show("results");
+}
+async function share(text){
+  if(navigator.share){ try{ await navigator.share({ text }); return; }catch(e){ if(e && e.name === "AbortError") return; } }
+  try{ await navigator.clipboard.writeText(text); toast("Copied. Paste it in your group chat."); }
+  catch(e){ const t = $("shareText"); t.focus(); t.select(); toast("Text selected. Copy it to share."); }
+}
+
+/* ---------- how to play ---------- */
+function openHow(){ $("howto").hidden = false; $("howClose").focus(); }
+function closeHow(){ $("howto").hidden = true; try{ localStorage.setItem(KEY+"_seen","1"); }catch(e){} }
+$("helpBtn").onclick = openHow; $("howClose").onclick = closeHow;
+$("howto").addEventListener("click", e => { if(e.target.id === "howto") closeHow(); });
+document.addEventListener("keydown", e => { if(e.key === "Escape" && !$("howto").hidden) closeHow(); });
+
+renderHome();
+// Go straight to today's hand if it hasn't been played yet
+{ const cur = unlockedCount() - 1; if(!store.results[cur]) openDay(cur); }
+let seen = false; try{ seen = localStorage.getItem(KEY+"_seen") === "1"; }catch(e){}
+if(!seen) openHow();
+</script>
+
+</body>
+</html>
