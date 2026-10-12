@@ -179,12 +179,18 @@ p{margin:0}
 .mx1{color:var(--back-2)!important}.mx2{color:var(--good)!important}.mx3{color:var(--amber)!important}.mx4{color:var(--red)!important}
 .dragghost{position:fixed;z-index:50;pointer-events:none;transform:rotate(-3deg) scale(1.04);opacity:.95;box-shadow:0 12px 28px -8px rgba(10,16,30,.45)}
 .slot.over{border-color:var(--red);border-style:solid;background:var(--card)}
+/* Practice hand: a coach bubble sits above the action bar, by the thumb */
+.coach{max-width:448px;margin:0 auto 10px;background:var(--back);color:var(--on-back);border-radius:14px;padding:11px 14px;font-weight:600;font-size:15px;line-height:1.35;box-shadow:var(--shadow);animation:coachIn .25s ease-out}
+.coach .tag{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:2px}
+@keyframes coachIn{from{transform:translateY(6px);opacity:0}}
+body.tut .wrap{padding-bottom:230px}
+.sheet .btn.ghost{flex:none}
 .chip,.slot.filled{touch-action:none;user-select:none;-webkit-user-select:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
-
 </head>
 <body>
+
 <div class="wrap" id="app">
   <header class="top">
     <div class="brand"><span class="pip" aria-hidden="true">♦</span>Strong Suit</div>
@@ -228,7 +234,7 @@ p{margin:0}
     <div class="roundhead">
       <div class="rh-row"><div><p class="small muted" id="rFam"></p><p class="rule" id="rRule"></p></div><div class="chipmult" id="rMult">×1</div></div>
       <div class="timer" id="timer"><i id="timerBar"></i></div>
-      <div class="rh-row"><span class="secs" id="secs">60s</span><span class="hint">Tap or drag to match</span></div>
+      <div class="rh-row"><span class="secs" id="secs">45s</span><span class="hint">Tap or drag to match</span></div>
     </div>
     <div class="pairs" id="pairs"></div>
     <div class="pool" id="pool" aria-label="Answers"></div>
@@ -253,7 +259,7 @@ p{margin:0}
   </section>
 </div>
 
-<div class="bar" id="bar"><div class="bar-inner" id="barInner"></div></div>
+<div class="bar" id="bar"><div class="coach" id="coach" role="status" aria-live="polite" hidden></div><div class="bar-inner" id="barInner"></div></div>
 
 <div class="modal" id="howto" hidden role="dialog" aria-modal="true" aria-labelledby="howTitle">
   <div class="sheet">
@@ -261,17 +267,17 @@ p{margin:0}
     <ol class="rules">
       <li><p>You're dealt <b>five categories</b>. Tap them from <b>strongest to weakest</b>. You'll skip your weakest!</p></li>
       <li><p>You play the other four from weakest to strongest, and each round is worth more than the last.</p><div class="example" style="grid-column:2"><span class="mx1">×1</span><span class="mx2">×2</span><span class="mx3">×3</span><span class="mx4">×4</span></div></li>
-      <li><p>Each round, <b>match six pairs in 60 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
-      <li><p>The best possible score is <b>60</b>. Your <b>self-awareness</b> shows how close your order was to the best order for your results.</p></li>
+      <li><p>Each round, <b>match six pairs in 45 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
     </ol>
     <button class="btn" id="howClose">Got it</button>
+    <button class="btn ghost" id="howPractice">New here? Try a practice hand</button>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
 const FEEDBACK_URL = ""; // paste a Google Form link here to show a feedback link on the results screen
-const ROUND_SECONDS = 60;
+const ROUND_SECONDS = 45;
 const FAMILY_EMOJI = {"Film & TV":"🎬","Music":"🎵","Sport":"⚽","Geography":"🌍","History":"📜","Science & Nature":"🔬","Food & Drink":"🍽️","Language":"🔤","Art & Literature":"🎨","Pop Culture":"✨"};
 const WP = t => "https://en.wikipedia.org/wiki/" + t;
 
@@ -326,6 +332,20 @@ const DAYS = [
  ]
 ];
 
+/* Practice hand: fixed, easy categories nearly everyone knows */
+const TUTORIAL = [
+  {fam:"Geography", a:"Country", b:"capital", pairs:[["France","Paris"],["Italy","Rome"],["Spain","Madrid"],["Japan","Tokyo"],["Egypt","Cairo"],["Germany","Berlin"]],
+   fact:"Rome surrounds Vatican City, the world's smallest country.", src:WP("Vatican_City")},
+  {fam:"Science & Nature", a:"Animal", b:"its baby", pairs:[["Cat","kitten"],["Dog","puppy"],["Cow","calf"],["Sheep","lamb"],["Horse","foal"],["Frog","tadpole"]],
+   fact:"A baby kangaroo is called a joey. It's about the size of a jelly bean when it's born.", src:WP("Kangaroo")},
+  {fam:"Film & TV", a:"Superhero", b:"secret identity", pairs:[["Batman","Bruce Wayne"],["Superman","Clark Kent"],["Spider-Man","Peter Parker"],["Iron Man","Tony Stark"],["Wonder Woman","Diana Prince"],["The Hulk","Bruce Banner"]],
+   fact:"Superman first appeared in Action Comics #1, in 1938.", src:WP("Action_Comics_1")},
+  {fam:"Food & Drink", a:"Dish", b:"main ingredient", pairs:[["Guacamole","avocado"],["Hummus","chickpeas"],["Omelette","eggs"],["Chips","potatoes"],["Popcorn","corn"],["Fondue","cheese"]],
+   fact:"Hummus is simply the Arabic word for chickpeas.", src:WP("Hummus")},
+  {fam:"Sport", a:"Sport", b:"where it's played", pairs:[["Tennis","court"],["Golf","course"],["Boxing","ring"],["Swimming","pool"],["Football","pitch"],["Ice hockey","rink"]],
+   fact:"An Olympic swimming pool is 50 metres long.", src:WP("Olympic-size_swimming_pool")}
+];
+
 /* ---------- storage (best effort) ---------- */
 const KEY = "strongsuit_v1";
 function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; } }
@@ -347,17 +367,32 @@ const fmtDay = d => d.toLocaleDateString("en-GB",{weekday:"short", day:"numeric"
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
 function show(id){ ["home","setup","ready","round","reveal","results"].forEach(s => $(s).hidden = s !== id); window.scrollTo(0,0); }
-function bar(buttons){ const b=$("barInner"); b.innerHTML=""; $("bar").hidden = !buttons.length;
-  buttons.forEach(o => { const el=document.createElement("button"); el.className="btn"+(o.ghost?" ghost":""); el.textContent=o.label; el.id=o.id||""; el.disabled=!!o.disabled; el.onclick=o.onClick; b.appendChild(el); }); }
+function barVis(){ $("bar").hidden = !$("barInner").children.length && $("coach").hidden; }
+function coach(msg){ const c=$("coach"); if(!tut || !msg){ c.hidden=true; c.innerHTML=""; c.dataset.msg=""; barVis(); return; }
+  if(c.dataset.msg !== msg){ c.innerHTML='<span class="tag">Practice hand</span>'+msg; c.dataset.msg=msg; c.style.animation="none"; c.offsetHeight; c.style.animation=""; }
+  c.hidden=false; barVis(); }
+function bar(buttons){ const b=$("barInner"); b.innerHTML="";
+  buttons.forEach(o => { const el=document.createElement("button"); el.className="btn"+(o.ghost?" ghost":""); el.textContent=o.label; el.id=o.id||""; el.disabled=!!o.disabled; el.onclick=o.onClick; b.appendChild(el); }); barVis(); }
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 const ruleOf = c => c.a + " → " + c.b;
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2200); }
 
 /* ---------- state ---------- */
 let dayIdx = 0, skip = null, order = [], roundNo = 0, roundState = null, timerId = null, scores = [];
+let tut = false;   // true while playing the practice hand
+const curHand = () => tut ? TUTORIAL : DAYS[dayIdx];
+function startTutorial(){
+  if(!$("howto").hidden) closeHow();
+  clearInterval(timerId); roundState = null;
+  tut = true; document.body.classList.add("tut");
+  skip = null; order = []; ranked = []; scores = []; roundNo = 0;
+  renderSetup(true);
+}
+function exitTutorial(){ tut = false; document.body.classList.remove("tut"); coach(""); }
 
 /* ---------- home ---------- */
 function renderHome(){
+  exitTutorial();
   const n = unlockedCount();
   dayIdx = Math.min(dayIdx || n-1, n-1);
   const cur = n-1;
@@ -379,6 +414,7 @@ function renderHome(){
   show("home");
 }
 function openDay(i){
+  exitTutorial();
   dayIdx = i;
   if(store.results[i]) return renderResults(store.results[i]);
   skip = null; order = []; ranked = []; scores = []; roundNo = 0;
@@ -389,7 +425,9 @@ function openDay(i){
 let ranked = [];   // card indexes, strongest first
 const famLabel = f => '<span class="emo" aria-hidden="true">'+(FAMILY_EMOJI[f]||"")+'</span>'+f;
 function renderSetup(animate){
-  const cats = DAYS[dayIdx];
+  const cats = curHand();
+  $("setupTitle").textContent = tut ? "Practice hand" : "Rank your hand, strongest first";
+  $("setupSub").textContent = tut ? "Five easy categories to learn the ropes. Nothing here counts." : "Your fifth card is skipped. You'll play weakest first, for ×1, up to your strongest, for ×4.";
   const left = ranked.length === 4 ? cats.findIndex((_, i) => !ranked.includes(i)) : null;
   const hand = $("hand"); hand.innerHTML = ""; hand.classList.toggle("deal", !!animate);
   cats.forEach((c, i) => {
@@ -408,6 +446,13 @@ function renderSetup(animate){
     };
     hand.appendChild(b);
   });
+  if(tut) coach([
+    "Which category do you know best? Tap it first. It'll be worth <b>×4</b>.",
+    "Nice. Now tap your next strongest, worth <b>×3</b>. (Tap a ranked card again to undo it.)",
+    "And your next strongest? That one's worth <b>×2</b>.",
+    "One more, worth <b>×1</b>. Whichever card you don't tap gets skipped, so leave your weakest.",
+    "<b>" + (left !== null ? cats[left].a : "") + "</b> is left over, so you'll skip it. Change your mind? Tap it to swap it in for your ×1 pick. Happy? Tap Deal."
+  ][ranked.length]);
   bar([{label:"Back", ghost:true, onClick: renderHome},
        {label: ranked.length < 4 ? (4 - ranked.length) + " more to rank" : "Deal (skip " + cats[left].a + ")", disabled: ranked.length < 4, onClick: startGame}]);
   show("setup");
@@ -415,26 +460,37 @@ function renderSetup(animate){
 
 /* ---------- game ---------- */
 function startGame(){
-  const cats = DAYS[dayIdx];
+  const cats = curHand();
   skip = cats.findIndex((_, i) => !ranked.includes(i));
   order = ranked.slice().reverse();   // play weakest (×1) first
   roundNo = 0; scores = []; readyRound();
 }
 function readyRound(){
-  const c = DAYS[dayIdx][order[roundNo]];
+  const c = curHand()[order[roundNo]];
   $("readyRound").textContent = "Round " + (roundNo+1) + " of 4";
   $("readyMult").innerHTML = "<small>×</small>" + (roundNo+1); $("readyMult").className = "bigmult mx" + (roundNo+1);
   $("readyRule").textContent = ruleOf(c);
+  if(tut){   // practice: no countdown, the player starts each round when ready
+    $("readyCount").hidden = true;
+    coach(roundNo === 0
+      ? "You play your <b>weakest</b> pick first, while the stakes are low. Each round is worth more than the last."
+      : "Round " + (roundNo+1) + " is worth <b>×" + (roundNo+1) + "</b>, so every correct pair scores " + (roundNo+1) + " points.");
+    bar([{label:"Start round", onClick: startRound}]); show("ready"); return;
+  }
+  $("readyCount").hidden = false;
   bar([]); show("ready");
   let n = 3; $("readyCount").textContent = n;
   const t = setInterval(() => { n--; if(n <= 0){ clearInterval(t); startRound(); } else $("readyCount").textContent = n; }, 800);
 }
 function startRound(){
-  const c = DAYS[dayIdx][order[roundNo]];
+  const c = curHand()[order[roundNo]];
   roundState = { cat:c, answers:Array(6).fill(null), sel:0, pool:shuffle(c.pairs.map(p=>p[1])), end: Date.now() + ROUND_SECONDS*1000 };
   $("rFam").innerHTML = famLabel(c.fam); $("rRule").textContent = ruleOf(c); $("rMult").textContent = "×" + (roundNo+1); $("rMult").className = "chipmult mx" + (roundNo+1);
   renderRound(); show("round");
-  clearInterval(timerId); timerId = setInterval(tick, 200); tick();
+  clearInterval(timerId);
+  $("timer").hidden = tut;
+  if(tut){ $("secs").textContent = "No time limit in practice"; return; }
+  timerId = setInterval(tick, 200); tick();
 }
 function tick(){
   const left = Math.max(0, roundState.end - Date.now());
@@ -474,6 +530,12 @@ function renderRound(){
     pool.appendChild(ch);
   });
   const filled = st.answers.filter(Boolean).length;
+  if(tut) coach(filled === 6 ? "All six matched. Tap <b>Lock in</b> to see how you did."
+    : roundNo === 0 ? (filled === 0
+        ? "Match each item on the left to its answer. Tap an answer below to fill the highlighted gap, or drag it onto any gap."
+        : "That's it. Keep going. Tap a filled gap to take its answer back, or drag answers between gaps to swap them.")
+    : roundNo === 3 ? "Your strongest category, worth <b>×4</b>. Up to 24 points on this one."
+    : "Same again, now worth <b>×" + (roundNo+1) + "</b>.");
   bar([{label: filled < 6 ? filled + " of 6 matched" : "Lock in", disabled: filled < 6, onClick: submitRound}]);
 }
 /* ---------- drag and drop (mouse, pen and touch) ---------- */
@@ -546,7 +608,10 @@ function submitRound(){
   });
   $("factText").textContent = c.fact; $("factSrc").href = c.src;
   const last = roundNo === 3;
-  bar([{label: last ? "See your results" : "Next: ×" + (roundNo+2) + " " + DAYS[dayIdx][order[roundNo+1]].a, onClick: () => { if(last) finish(); else { roundNo++; readyRound(); } }}]);
+  if(tut) coach(roundNo === 0
+    ? "Green pairs were right. Red ones show what you picked, then the answer. In a daily hand you get <b>" + ROUND_SECONDS + " seconds</b> a round."
+    : last ? "That's all four rounds. Let's see your score." : "");
+  bar([{label: last ? "See your results" : "Next: ×" + (roundNo+2) + " " + curHand()[order[roundNo+1]].a, onClick: () => { if(last) finish(); else { roundNo++; readyRound(); } }}]);
   show("reveal");
 }
 
@@ -556,8 +621,9 @@ function finish(){
   const sorted = scores.map(r => r.correct).sort((a,b) => a-b);
   const best = sorted.reduce((s, v, i) => s + v*(i+1), 0);
   const aware = best === 0 ? 100 : Math.round(total/best*100);
-  const skipped = DAYS[dayIdx][skip];
+  const skipped = curHand()[skip];
   const res = { day:dayIdx, total, best, aware, rounds:scores, skipped:{fam:skipped.fam, rule:ruleOf(skipped)} };
+  if(tut){ res.practice = true; return renderResults(res); }   // practice results are never saved
   store.results[dayIdx] = res; save();
   renderResults(res);
 }
@@ -587,8 +653,18 @@ function renderResults(r){
   const sk = document.createElement("div"); sk.className = "row skip";
   sk.innerHTML = '<div class="m">–</div><div class="t"></div><div class="s">Skipped</div>';
   sk.querySelector(".t").textContent = r.skipped.rule; rows.appendChild(sk);
-  const text = shareText(r); $("shareText").value = text;
   const n = unlockedCount();
+  $("shareText").hidden = $("nextNote").hidden = !!r.practice;
+  if(r.practice){
+    $("resTitle").textContent = "Practice hand";
+    $("feedbackP").hidden = true;
+    coach("Your <b>self-awareness</b> score compares your order with the best possible order for these results. The best score in a hand is 60. Ready for the real thing?");
+    const cur = n - 1;
+    bar([{label:"Home", ghost:true, onClick: renderHome},
+         {label: store.results[cur] ? "Done" : "Play today's hand", onClick: () => store.results[cur] ? renderHome() : openDay(cur)}]);
+    return show("results");
+  }
+  const text = shareText(r); $("shareText").value = text;
   $("nextNote").textContent = n < DAYS.length ? "Next hand opens " + fmtDay(unlockDate(n)) + "." : "That's every prototype hand for now.";
   if(FEEDBACK_URL){ $("feedbackLink").href = FEEDBACK_URL; $("feedbackP").hidden = false; }
   bar([{label:"Home", ghost:true, onClick: renderHome},{label:"Share result", onClick: () => share(text)}]);
@@ -603,7 +679,7 @@ async function share(text){
 /* ---------- how to play ---------- */
 function openHow(){ $("howto").hidden = false; $("howClose").focus(); }
 function closeHow(){ $("howto").hidden = true; try{ localStorage.setItem(KEY+"_seen","1"); }catch(e){} }
-$("helpBtn").onclick = openHow; $("howClose").onclick = closeHow;
+$("helpBtn").onclick = openHow; $("howClose").onclick = closeHow; $("howPractice").onclick = startTutorial;
 $("howto").addEventListener("click", e => { if(e.target.id === "howto") closeHow(); });
 document.addEventListener("keydown", e => { if(e.key === "Escape" && !$("howto").hidden) closeHow(); });
 
