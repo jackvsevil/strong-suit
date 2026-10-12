@@ -674,7 +674,7 @@ function shareText(r){
   const lines = ["Strong Suit #" + (r.day+1) + " · " + r.total + "/60"];
   r.rounds.slice().reverse().forEach(x => lines.push("×" + x.mult + " " + (FAMILY_EMOJI[x.fam]||"") + " " + x.marks.map(m => m ? "🟩" : "⬜").join("")));
   const sk = r.skipped.rule.split(" → ")[0];
-  lines.push(r.bonus ? "⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " " + r.bonus.marks.map(m => m ? "🟩" : "⬜").join("") + " (skipped " + sk + ")"
+  lines.push(r.bonus ? "⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " " + r.bonus.marks.map(m => m ? "🟨" : "⬜").join("")   // yellow: right, but didn't score
                      : "⏭️ " + (FAMILY_EMOJI[r.skipped.fam]||"") + " skipped " + sk);
   lines.push("🎯 Self-awareness " + r.aware + "%");
   lines.push(location.origin + location.pathname);
