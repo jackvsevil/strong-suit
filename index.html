@@ -23,7 +23,7 @@ window.addEventListener("error", function(e){
 :root{
   --table:#E6EBF3; --card:#FFFFFF; --ink:#15213B; --muted:#5A6580; --line:#CDD5E3;
   --back:#1E3B70; --back-2:#2C4F8E; --on-back:#FFFFFF;
-  --red:#C3192C; --amber:#A86A10; --good:#23764A; --bad:#B23A1F; --good-bg:#E4F2EA; --bad-bg:#F8E7E2;
+  --red:#C3192C; --amber:#A86A10; --yellow:#E2B007; --good:#23764A; --bad:#B23A1F; --good-bg:#E4F2EA; --bad-bg:#F8E7E2;
   --shadow:0 1px 0 rgba(21,33,59,.06),0 6px 18px -10px rgba(21,33,59,.35);
   --display:"Young Serif",Georgia,"Times New Roman",serif;
   --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -31,12 +31,12 @@ window.addEventListener("error", function(e){
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
   --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424;
-  --red:#FF6F7D; --amber:#F2B544; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
+  --red:#FF6F7D; --amber:#F2B544; --yellow:#F5D04C; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
   --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}}
 :root[data-theme="dark"]{
   --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
   --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424;
-  --red:#FF6F7D; --amber:#F2B544; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
+  --red:#FF6F7D; --amber:#F2B544; --yellow:#F5D04C; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
   --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}
 
 html,body{height:100%}
@@ -161,6 +161,7 @@ p{margin:0}
 .dots{display:flex;gap:3px;margin-top:4px}
 .dots i{width:10px;height:10px;border-radius:3px;background:var(--line)}
 .dots i.on{background:var(--good)}
+.dots.bonus-dots i.on{background:var(--yellow)}   /* right, but didn't score: matches 🟨 on the share card */
 .aware{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
 .aware .pct{grid-row:span 2;font:400 40px/1 var(--display);color:var(--back-2)}
 .aware b{font-size:16px}
@@ -701,7 +702,7 @@ function renderResults(r){
   const skt = sk.querySelector(".t"); skt.textContent = r.skipped.rule;
   if(r.bonus){
     const sm = document.createElement("small"); sm.textContent = (FAMILY_EMOJI[r.skipped.fam] || "") + " " + r.skipped.fam + " · " + r.bonus.correct + "/6 · skipped"; skt.appendChild(sm);
-    const dots = document.createElement("div"); dots.className = "dots"; dots.setAttribute("aria-hidden","true");
+    const dots = document.createElement("div"); dots.className = "dots bonus-dots"; dots.setAttribute("aria-hidden","true");
     r.bonus.marks.forEach(m => { const i = document.createElement("i"); if(m) i.className = "on"; dots.appendChild(i); }); skt.appendChild(dots);
     const v = document.createElement("div"); v.className = "verdict"; v.textContent = verdict(r); skt.appendChild(v);
   }
