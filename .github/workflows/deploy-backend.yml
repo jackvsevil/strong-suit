@@ -1,0 +1,21 @@
+# Deploys the server code (Cloud Functions) and the database security rules.
+name: Deploy server code and rules
+on:
+  push:
+    branches: [v1, main]
+    paths: ["functions/**", "firestore.rules", "firestore.indexes.json", "firebase.json", ".github/workflows/deploy-backend.yml"]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix functions
+      - run: npm test --prefix functions
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - run: npx --yes firebase-tools@14.27.0 deploy --only functions,firestore:rules,firestore:indexes --project strong-suit --non-interactive --force

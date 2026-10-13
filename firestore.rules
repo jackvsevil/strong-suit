@@ -1,0 +1,33 @@
+rules_version = '2';
+// Players read; only the server writes. Answer keys and play secrets are never readable.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function me(uid) { return signedIn() && request.auth.uid == uid; }
+    function member(gid) { return signedIn() && exists(/databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid)); }
+
+    match /config/{doc} { allow read: if true; }
+
+    // Category labels only; prompts and answers come from the server one round at a time.
+    match /hands/{hand} { allow get: if signedIn() && resource.data.opensAt <= request.time; }
+
+    match /players/{uid} {
+      allow read: if me(uid);
+      match /plays/{hand} { allow read: if me(uid); }
+    }
+
+    // Name and score only.
+    match /leaderboards/{hand} {
+      allow read: if signedIn();
+      match /entries/{uid} { allow read: if signedIn(); }
+    }
+
+    match /groups/{gid} {
+      allow read: if member(gid);
+      match /members/{uid} { allow read: if member(gid); }
+    }
+
+    // Everything else (handKeys, playSecrets, groupCodes, categoryStats) is server-only.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
