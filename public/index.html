@@ -291,6 +291,7 @@ body.tut .wrap{padding-bottom:230px}
 .barline{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
 .barline i{display:block;height:100%;background:var(--good);border-radius:99px}
 .fam-row b{text-align:right;font-variant-numeric:tabular-nums}
+.backlink{align-self:flex-start;background:none;border:0;color:var(--back-2);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0;margin-bottom:-6px}
 .linkbtn{background:none;border:0;color:var(--bad);font-weight:600;cursor:pointer;padding:8px 0;text-align:left}
 .loading{min-height:60vh;display:grid;place-items:center;text-align:center}
 body.inround .demo{display:none}
@@ -380,6 +381,7 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
 
   <!-- LEADERBOARD -->
   <section class="screen stack" id="board" hidden>
+    <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="stack" style="gap:4px"><h2>Leaderboard</h2><p class="muted small" id="boardSub"></p></div>
     <div class="tabs" id="boardTabs"></div>
     <p class="small muted" id="boardNote"></p>
@@ -388,6 +390,7 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
 
   <!-- GROUPS -->
   <section class="screen stack" id="groups" hidden>
+    <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="stack" style="gap:4px"><h2>Groups</h2><p class="muted small">Play against friends. Free groups hold up to 10 people.</p></div>
     <div class="list" id="groupList"></div>
     <div class="card">
@@ -401,6 +404,7 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
 
   <!-- PROFILE -->
   <section class="screen stack" id="profile" hidden>
+    <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="namebar"><div><h2 id="pName"></h2><p class="small muted" id="pAccount"></p></div><button class="btn ghost small" id="nameBtn" style="flex:none">Change name</button></div>
     <div class="stats" id="pStats"></div>
     <div class="card"><b>Your strongest families</b><div class="list" id="pFams"></div></div>

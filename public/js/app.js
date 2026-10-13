@@ -480,7 +480,7 @@ async function share(text) {
 let boardTab = "all";
 async function renderBoard() {
   show("board");
-  bar([{ label: "Home", ghost: true, onClick: renderHome }]);
+  bar([]);
   const n = S.n;
   $("boardSub").textContent = n >= 1 ? "Hand #" + n + " · " + fmtDay(new Date()) : "";
   const groups = await api.groups().catch(() => []);
@@ -528,7 +528,7 @@ const ordinal = n => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th"
 /* ---------- groups ---------- */
 async function renderGroups() {
   show("groups");
-  bar([{ label: "Home", ghost: true, onClick: renderHome }]);
+  bar([]);
   const list = $("groupList"); list.innerHTML = '<p class="muted small">Loading…</p>';
   const groups = await api.groups().catch(e => (toast(e.message), []));
   list.innerHTML = groups.length ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
@@ -564,7 +564,7 @@ async function joinGroup(code) {
 /* ---------- profile ---------- */
 async function renderProfile() {
   show("profile");
-  bar([{ label: "Home", ghost: true, onClick: renderHome }]);
+  bar([]);
   await refreshMe();
   const me = S.me || {}, st = me.stats || {}, acc = api.account();
   $("pName").textContent = me.name || "";
@@ -621,6 +621,7 @@ function wire() {
   $("howto").addEventListener("click", e => { if (e.target.id === "howto") closeHow(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("howto").hidden) closeHow(); if (!$("ask").hidden) $("askCancel").click(); } });
   $("bonusBtn").onclick = playBonus;
+  document.querySelectorAll("[data-home]").forEach(b => (b.onclick = renderHome));
   $("homeLink").onclick = e => { e.preventDefault(); if (!document.body.classList.contains("inround")) renderHome(); };
   document.querySelectorAll(".nav button[data-go]").forEach(b => (b.onclick = () => ({ board: renderBoard, groups: renderGroups, profile: renderProfile })[b.dataset.go]()));
   $("createBtn").onclick = createGroup; $("joinBtn").onclick = () => joinGroup();
