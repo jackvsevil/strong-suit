@@ -11,11 +11,12 @@ const famLabel = f => '<span class="emo" aria-hidden="true">' + (FAMILY_EMOJI[f]
 const first = label => String(label).split(" → ")[0];
 
 /* ---------- small UI helpers ---------- */
-const SCREENS = ["loading", "home", "setup", "ready", "round", "reveal", "results", "board", "groups", "group", "profile"];
+const SCREENS = ["loading", "home", "setup", "ready", "round", "reveal", "results", "board", "groups", "group", "hands", "profile"];
+const NAV_FOR = { group: "groups", board: "groups" };
 function show(id) {
   document.body.classList.toggle("inround", id === "round");
   SCREENS.forEach(s => ($(s).hidden = s !== id));
-  document.querySelectorAll(".nav button[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === (id === "group" ? "groups" : id)));
+  document.querySelectorAll(".nav button[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === (NAV_FOR[id] || id)));
   window.scrollTo(0, 0);
 }
 function barVis() { $("bar").hidden = !$("barInner").children.length && $("coach").hidden; }
@@ -86,13 +87,13 @@ async function renderHome() {
   if (!launch || S.n < 1) {
     $("homeTitle").textContent = "Coming soon";
     $("homeSub").textContent = launch ? "Hand #1 opens on " + fmtDay(dateOf(launch, 1)) + ". Try the practice hand while you wait." : "The first hand is on its way. Try the practice hand while you wait.";
-    $("waitCard").hidden = false; $("pastCard").hidden = true;
+    $("waitCard").hidden = false;
     let wl = null; try { wl = localStorage.getItem("ss_waitlisted"); } catch (_) {}
     if (wl) { $("waitForm").hidden = true; $("waitText").textContent = "You're on the list. We'll email " + wl + " once, when Hand #1 opens."; }
     bar([{ label: "Try the practice hand", onClick: startTutorial }]);
     return show("home");
   }
-  $("waitCard").hidden = true; $("pastCard").hidden = false;
+  $("waitCard").hidden = true;
   $("homeTitle").textContent = "Hand #" + S.n;
   S.hand = await api.getHand(S.n).catch(() => null);
   S.play = S.hand ? await api.getPlay(S.n).catch(() => null) : null;
@@ -113,7 +114,8 @@ async function renderHome() {
 }
 
 /* ---------- open a hand: rank it, carry on, or see the result ---------- */
-async function openHand(n) {
+async function openHand(n, from) {
+  S.from = from || null;   // "hands" when opened from Your hands, so Back returns there
   busy(true);
   try {
     const hand = n === S.n && S.hand ? S.hand : await api.getHand(n);
@@ -459,7 +461,8 @@ function renderResults() {
   }
   const text = shareText(p); $("shareText").value = text;
   $("nextNote").textContent = p.hand === S.n ? "The next hand opens in " + untilMidnight() + "." : "";
-  bar([{ label: "Home", ghost: true, onClick: renderHome }, { label: "Share result", onClick: () => share(text) }]);
+  bar([S.from === "hands" ? { label: "Back", ghost: true, onClick: renderHands } : { label: "Home", ghost: true, onClick: renderHome },
+       { label: "Share result", onClick: () => share(text) }]);
   show("results");
   api.leaderboard(p.hand).then(lb => {
     const s = lb.summary; if (!s || !s.players || s.players < 2) return;
@@ -480,40 +483,36 @@ async function share(text) {
   catch (e) { const t = $("shareText"); t.focus(); t.select(); toast("Text selected. Copy it to share."); }
 }
 
-/* ---------- leaderboard ---------- */
-let boardTab = "all";
-async function renderBoard() {
+/* ---------- everyone: the global top 20 for a hand, reached from Groups ---------- */
+let boardSeq = 0;
+async function renderBoard(n = S.n) {
   show("board");
   bar([]);
-  const n = S.n;
-  $("boardSub").textContent = n >= 1 ? "Hand #" + n + " · " + fmtDay(new Date()) : "";
-  const groups = await api.groups().catch(() => []);
-  const tabs = $("boardTabs"); tabs.innerHTML = "";
-  [{ id: "all", name: "Everyone" }].concat(groups).forEach(g => {
-    const b = document.createElement("button"); b.className = "tab" + (boardTab === g.id ? " on" : ""); b.textContent = g.name;
-    b.onclick = () => { boardTab = g.id; renderBoard(); };
-    tabs.appendChild(b);
-  });
-  if (!groups.find(g => g.id === boardTab)) boardTab = "all";
+  const seq = ++boardSeq;
   const list = $("boardList"); list.innerHTML = '<p class="muted small">Loading…</p>';
-  if (!(n >= 1)) { list.innerHTML = '<p class="muted">Leaderboards start with Hand #1.</p>'; return; }
+  $("boardNote").textContent = "";
+  $("bStep").hidden = !(S.n >= 1);
+  if (!(S.n >= 1)) { list.innerHTML = '<p class="muted">The leaderboard starts with Hand #1.</p>'; return; }
+  const today = n === S.n;
+  $("bWhen").textContent = "Hand #" + n;
+  $("bWhenSub").textContent = fmtDay(dateOf(S.config.launchDate, n)) + (today ? " · today" : "");
+  $("bPrev").disabled = n <= 1; $("bNext").disabled = today;
+  $("bPrev").onclick = () => renderBoard(n - 1); $("bNext").onclick = () => renderBoard(n + 1);
   try {
     const myUid = api.account().uid;
-    let rows, note = "";
-    if (boardTab === "all") {
-      const lb = await api.leaderboard(n);
-      rows = lb.top;
-      const s = lb.summary;
-      if (lb.mine && s) {
-        const above = Object.entries(s.tally || {}).reduce((t, [sc, c]) => t + (+sc > lb.mine.score ? c : 0), 0);
-        note = "You're joint " + ordinal(above + 1) + " of " + s.players.toLocaleString("en-GB") + " today.";
-        if (!rows.find(r => r.uid === myUid)) rows = rows.concat({ ...lb.mine, uid: myUid, rank: above + 1 });
-      } else note = s && s.players ? s.players.toLocaleString("en-GB") + " players so far today. Play to get on the board." : "Nobody's played yet today.";
-    } else {
-      rows = (await api.groupBoard(boardTab, n)).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-      const g = groups.find(x => x.id === boardTab);
-      note = g ? g.memberCount + " of " + g.cap + " members · code " + g.code : "";
-    }
+    let note = "";
+    const lb = await api.leaderboard(n);
+    if (seq !== boardSeq) return;
+    let rows = lb.top;
+    const s = lb.summary;
+    const when = today ? " today" : "";
+    if (lb.mine && s) {
+      const above = Object.entries(s.tally || {}).reduce((t, [sc, c]) => t + (+sc > lb.mine.score ? c : 0), 0);
+      const tied = (s.tally || {})[lb.mine.score] > 1;
+      note = "You're " + (tied ? "joint " : "") + ordinal(above + 1) + " of " + s.players.toLocaleString("en-GB") + when + ".";
+      if (!rows.find(r => r.uid === myUid)) rows = rows.concat({ ...lb.mine, uid: myUid, rank: above + 1 });
+    } else if (s && s.players) note = s.players.toLocaleString("en-GB") + (s.players === 1 ? " player" : " players") + (today ? " so far today. Play to get on the board." : ".");
+    else note = today ? "Nobody's played yet today." : "";
     list.innerHTML = "";
     let rank = 0, prev = null;
     rows.forEach((r, i) => {
@@ -528,6 +527,47 @@ async function renderBoard() {
   } catch (e) { list.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; }
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
+
+/* ---------- your hands: every hand so far, newest first ---------- */
+async function renderHands() {
+  show("hands"); bar([]);
+  const list = $("handsList"); list.innerHTML = '<p class="muted small">Loading…</p>';
+  $("handsNote").textContent = "";
+  $("handsSub").hidden = !(S.n >= 1);
+  if (!(S.n >= 1)) { list.innerHTML = '<p class="muted">Your hands will appear here once Hand #1 opens.</p>'; return; }
+  let plays;
+  try { plays = await api.myPlays(); } catch (e) { list.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; return; }
+  list.innerHTML = "";
+  let missed = 0;
+  for (let n = S.n; n >= 1; n--) {
+    const p = plays[n], today = n === S.n, done = p && p.status === "done";
+    const open = done || today;
+    const d = document.createElement(open ? "button" : "div");
+    d.className = "row hs" + (open ? " tap" : " skip");
+    d.innerHTML = '<div class="m"></div><div class="t"><small></small></div><div class="s"></div>';
+    d.querySelector(".t").prepend("Hand #" + n + " · " + fmtDay(dateOf(S.config.launchDate, n)));
+    const m = d.querySelector(".m"), sm = d.querySelector("small"), s = d.querySelector(".s");
+    if (done) {
+      const sk = p.categories[p.skipped];
+      m.textContent = p.score;
+      sm.textContent = p.aware + "% self-awareness · skipped " + (FAMILY_EMOJI[sk.family] || "") + " " + sk.family;
+      s.innerHTML = '<span class="chev" aria-hidden="true">›</span>';
+      d.setAttribute("aria-label", "Hand " + n + ": " + p.score + " out of 60");
+      d.onclick = () => openHand(n, "hands");
+    } else if (today) {
+      m.textContent = "–";
+      sm.textContent = p ? "Part-way through" : "Today's hand";
+      s.innerHTML = '<span class="pill">' + (p ? "Carry on" : "Play") + "</span>";
+      d.onclick = () => openHand(n);
+    } else {
+      m.textContent = "–";
+      sm.textContent = p ? "Not finished" : "Missed";
+      missed++;
+    }
+    list.appendChild(d);
+  }
+  if (missed) $("handsNote").textContent = "Playing hands you missed is coming with Plus.";
+}
 
 /* ---------- groups ---------- */
 async function renderGroups() {
@@ -851,7 +891,8 @@ function wire() {
   document.querySelectorAll("[data-home]").forEach(b => (b.onclick = renderHome));
   document.querySelectorAll("[data-groups]").forEach(b => (b.onclick = renderGroups));
   $("homeLink").onclick = e => { e.preventDefault(); if (!document.body.classList.contains("inround")) renderHome(); };
-  document.querySelectorAll(".nav button[data-go]").forEach(b => (b.onclick = () => ({ board: renderBoard, groups: renderGroups, profile: renderProfile })[b.dataset.go]()));
+  document.querySelectorAll(".nav button[data-go]").forEach(b => (b.onclick = () => ({ hands: renderHands, groups: renderGroups, profile: renderProfile })[b.dataset.go]()));
+  $("everyoneRow").onclick = () => renderBoard();
   $("waitBtn").onclick = joinWaitlist;
   $("createBtn").onclick = createGroup; $("joinBtn").onclick = () => joinGroup();
   $("nameBtn").onclick = editName; $("googleBtn").onclick = signInGoogle; $("emailBtn").onclick = signInEmail;

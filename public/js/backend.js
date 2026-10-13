@@ -124,13 +124,9 @@ async function firebaseBackend(config) {
     async group(gid) { const g = await get(`groups/${gid}`); return g && { id: gid, ...g }; },
     groupDay: (gid, n) => call("groupDay")({ groupId: gid, hand: n }),
     groupMonth: (gid, month) => call("groupMonth")({ groupId: gid, month }),
-    async groupBoard(gid, n) {
-      const ms = await F.getDocs(F.collection(db, `groups/${gid}/members`));
-      const rows = await Promise.all(ms.docs.map(async d => {
-        const e = await get(`leaderboards/${n}/entries/${d.id}`).catch(() => null);
-        return { uid: d.id, name: d.data().name, score: e ? e.score : null, aware: e ? e.aware : null };
-      }));
-      return rows;
+    async myPlays() {   // every hand you've started, keyed by hand number
+      const qs = await F.getDocs(F.collection(db, `players/${uid()}/plays`));
+      return Object.fromEntries(qs.docs.map(d => [d.id, d.data()]));
     },
     createGroup: name => call("createGroup")({ name }),
     joinGroup: code => call("joinGroup")({ code }),
@@ -269,10 +265,7 @@ function demoBackend() {
         }),
       };
     },
-    async groupBoard(gid, n) {
-      const g = st.groups[gid]; const all = entries(n);
-      return g.members.map(uid => { const e = all.find(x => x.uid === uid); return { uid, name: uid === "me" ? st.me.name : (bots.find(b => b.uid === uid) || {}).name, score: e ? e.score : null, aware: e ? e.aware : null }; });
-    },
+    myPlays: async () => structuredClone(st.plays),
     async createGroup(name) {
       const id = "g" + Date.now(); const c = code();
       st.groups[id] = { name, code: c, memberCount: 3, cap: 10, ownerUid: "me", members: ["me", "bot1", "bot4"] };
