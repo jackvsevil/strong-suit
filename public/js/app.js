@@ -572,7 +572,10 @@ async function renderProfile() {
   await refreshMe();
   const me = S.me || {}, st = me.stats || {}, acc = api.account();
   $("pName").textContent = me.name || "";
-  $("pAccount").textContent = acc.anonymous ? "Playing as a guest on this device" : "Signed in" + (acc.email ? " as " + acc.email : "");
+  if (acc.anonymous) {
+    $("pAccount").innerHTML = 'Playing as a guest on this device. <button class="inlinelink" id="createAcc">Create an account</button>';
+    $("createAcc").onclick = () => { $("signinBox").scrollIntoView({ behavior: "smooth", block: "center" }); $("signinBox").classList.add("flash"); setTimeout(() => $("signinBox").classList.remove("flash"), 1200); };
+  } else $("pAccount").textContent = "Signed in" + (acc.email ? " as " + acc.email : "");
   $("signinBox").hidden = !acc.anonymous;
   $("signedInBox").hidden = acc.anonymous;
   const played = st.played || 0;
