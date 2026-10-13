@@ -39,7 +39,7 @@ export const DAYS = [
    fact:"Titan is the only moon in the solar system with a thick atmosphere.", src:WP("Titan_(moon)")}
  ],
  [
-  {fam:"Film & TV", a:"TV drama character", b:"show", pairs:[["Walter White","Breaking Bad"],["Jon Snow","Game of Thrones"],["Tony Soprano","The Sopranos"],["Don Draper","Mad Men"],["Omar Little","The Wire"],["Carrie Mathison","Homeland"]],
+  {fam:"Film & TV", a:"TV drama character", b:"show", pairs:[["Walter White","Breaking Bad"],["Jon Snow","Game of Thrones"],["Jack Bauer","24"],["Don Draper","Mad Men"],["Omar Little","The Wire"],["Carrie Mathison","Homeland"]],
    fact:"Bryan Cranston won four Emmys for playing Walter White in Breaking Bad.", src:WP("Bryan_Cranston")},
   {fam:"History", a:"Monarch", b:"royal house", pairs:[["Henry VIII","Tudor"],["Elizabeth II","Windsor"],["Victoria","Hanover"],["Charles I","Stuart"],["Richard III","York"],["Edward VII","Saxe-Coburg and Gotha"]],
    fact:"The royal house was called Saxe-Coburg and Gotha until 1917, when George V renamed it Windsor during the First World War.", src:WP("House_of_Windsor")},
