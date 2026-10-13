@@ -15,6 +15,7 @@ const FORCE = process.env.FORCE === "1";
 const DRY = process.env.DRY_RUN === "1";
 if (!SHEET_ID) throw new Error("SHEET_ID is not set");
 
+process.on("unhandledRejection", e => { console.log("::error::" + String(e && e.message || e).replace(/%/g, "%25")); process.exit(1); });
 const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"] });
 const client = await auth.getClient();
 async function values(range, render = "FORMATTED_VALUE") {
@@ -88,6 +89,10 @@ if (!DRY) await db.doc("config/app").set({ launchDate: launch, updatedAt: Timest
 
 console.log(`Launch date ${launch}. ${DRY ? "Would publish" : "Published"} ${published} hands; left ${skipped} open hands unchanged.`);
 if (problems.length) console.log("Not published:\n  " + problems.join("\n  "));
+if (process.env.GITHUB_ACTIONS) {   // annotations show on the run page
+  console.log(`::notice::Launch date ${launch}. ${DRY ? "Would publish" : "Published"} ${published} hands; ${skipped} open hands left unchanged.`);
+  problems.forEach(p => console.log("::warning::" + p.replace(/%/g, "%25")));
+}
 if (process.env.GITHUB_STEP_SUMMARY) {
   const fs = await import("node:fs");
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
