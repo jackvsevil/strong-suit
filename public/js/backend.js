@@ -121,6 +121,9 @@ async function firebaseBackend(config) {
       const gs = await Promise.all(ids.map(id => get(`groups/${id}`).then(g => g && { id, ...g }).catch(() => null)));
       return gs.filter(Boolean);
     },
+    async group(gid) { const g = await get(`groups/${gid}`); return g && { id: gid, ...g }; },
+    groupDay: (gid, n) => call("groupDay")({ groupId: gid, hand: n }),
+    groupMonth: (gid, month) => call("groupMonth")({ groupId: gid, month }),
     async groupBoard(gid, n) {
       const ms = await F.getDocs(F.collection(db, `groups/${gid}/members`));
       const rows = await Promise.all(ms.docs.map(async d => {
@@ -148,7 +151,7 @@ function demoBackend() {
   const pre = new URLSearchParams(location.search).has("prelaunch");   // ?demo=1&prelaunch=1 shows the countdown page
   const launch = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (pre ? 3 : -(DAYS.length - 1)));
   const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-  const hands = {};
+  const hands = {}, hands_ = hands;
   DAYS.forEach((cats, i) => {
     const h = toHand(cats, i + 1);
     h.date = ymd(new Date(launch.getFullYear(), launch.getMonth(), launch.getDate() + i));
@@ -156,7 +159,6 @@ function demoBackend() {
   });
   // made-up rivals so the leaderboards have something in them
   const bots = ["Ada", "Bea", "Cal", "Dev", "Eli", "Fin", "Gus", "Hal", "Ivy", "Jo"].map((name, i) => ({ uid: "bot" + i, name, seed: i }));
-  const botScore = (b, n) => (b.seed * 7 + n * 13) % 47 + 8;
   const engine = makeEngine({
     hands, plays: st.plays, onSave: save,
     onFinish(n, p) {
@@ -171,8 +173,29 @@ function demoBackend() {
       [0, 1, 2, 3].forEach(k => { const r = p.rounds[k]; const f = fam(r.family); f.rounds++; f.correct += r.correct; });
     },
   });
+  // a whole made-up play for a bot, so group pages have rankings and picks to show
+  const rng = seed => { let s = seed >>> 0 || 1; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
+  const shuf = (a, r) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  function botPlay(b, n) {
+    const h = hands[n];
+    if (!h || (b.seed + n) % 4 === 1) return null;   // bots miss the odd day
+    const r = rng(b.seed * 1000 + n * 7 + 1);
+    const ranking = shuf([0, 1, 2, 3, 4], r), order = ranking.slice(0, 4).reverse(), skipped = ranking[4];
+    const mk = (slot, mult) => {
+      const c = Math.floor(r() * 7), idx = shuf([0, 1, 2, 3, 4, 5], r), wrong = idx.slice(c), chosen = [];
+      idx.slice(0, c).forEach(i => (chosen[i] = i));
+      wrong.forEach((i, j) => (chosen[i] = wrong.length > 1 ? wrong[(j + 1) % wrong.length] : null));
+      const cat = h.categories[slot];
+      return { slot, mult, label: cat.label, family: cat.family, correct: c, marks: chosen.map((x, i) => x === i), review: { chosen } };
+    };
+    const rounds = {}; order.forEach((slot, k) => (rounds[k] = mk(slot, k + 1)));
+    const bonus = r() < 0.5 ? mk(skipped, 0) : null;
+    return { status: "done", ranking, order, skipped, categories: h.categories, rounds, bonus, ...finalScore([0, 1, 2, 3].map(k => rounds[k].correct)) };
+  }
+  const nameOf = uid => (uid === "me" ? st.me.name : (bots.find(b => b.uid === uid) || {}).name);
+  const playOf = (uid, n) => (uid === "me" ? st.plays[n] || null : botPlay(bots.find(b => b.uid === uid), n));
   const entries = n => {
-    const list = bots.map(b => ({ uid: b.uid, name: b.name, score: botScore(b, n), aware: 60 + (b.seed * 11 + n) % 41 }));
+    const list = bots.map(b => ({ b, p: botPlay(b, n) })).filter(x => x.p).map(({ b, p }) => ({ uid: b.uid, name: b.name, score: p.score, aware: p.aware }));
     const p = st.plays[n];
     if (p && p.status === "done") list.push({ uid: "me", name: st.me.name, score: p.score, aware: p.aware });
     return list;
@@ -196,6 +219,56 @@ function demoBackend() {
       return { summary: { players: list.length, tally, totalScore: list.reduce((s, e) => s + e.score, 0) }, top: list.slice(0, 20), mine: list.find(e => e.uid === "me") || null };
     },
     groups: async () => st.me.groupIds.map(id => ({ id, ...st.groups[id] })),
+    group: async gid => (st.groups[gid] ? { id: gid, ...st.groups[gid] } : null),
+    // same shapes as the server's groupDay and groupMonth
+    async groupDay(gid, n) {
+      const g = st.groups[gid], h = hands_[n];
+      if (!g) throw Object.assign(new Error("You're not in that group."), { code: "permission-denied" });
+      if (!h) throw Object.assign(new Error("That hand isn't open yet."), { code: "not-found" });
+      const plays = Object.fromEntries(g.members.map(uid => [uid, playOf(uid, n)]));
+      const mine = plays.me, canSee = !!(mine && mine.status === "done");
+      const members = g.members.map(uid => {
+        const p = plays[uid], row = { uid, name: nameOf(uid), status: p ? p.status : null };
+        if (p && p.status === "done") Object.assign(row, { score: p.score, best: p.best, aware: p.aware });
+        if (canSee && p && p.status === "done") Object.assign(row, { ranking: p.ranking, skipped: p.skipped });
+        return row;
+      });
+      const out = { hand: n, date: h.date, categories: h.categories.map(c => ({ slot: c.slot, label: c.label, family: c.family })), members, canSee, bonusDone: !!(mine && mine.bonus) };
+      if (!canSee) return out;
+      out.rounds = h.categories.map(c => {
+        if (c.slot === mine.skipped && !mine.bonus) return { slot: c.slot, locked: true };
+        const k = h.rounds[c.slot], picks = {};
+        g.members.forEach(uid => {
+          const p = plays[uid];
+          if (!p || p.status !== "done") return;
+          const r = Object.values(p.rounds).find(x => x.slot === c.slot) || (p.bonus && p.bonus.slot === c.slot ? p.bonus : null);
+          picks[uid] = r ? { mult: r.mult, chosen: r.review.chosen, correct: r.correct } : { mult: null };
+        });
+        return { slot: c.slot, prompts: k.prompts, answers: k.answers, fact: k.fact, src: k.src, picks };
+      });
+      return structuredClone(out);
+    },
+    async groupMonth(gid, month) {
+      const g = st.groups[gid];
+      if (!g) throw Object.assign(new Error("You're not in that group."), { code: "permission-denied" });
+      const ns = Object.keys(hands_).map(Number).filter(n => month === "all" || hands_[n].date.startsWith(month));
+      return {
+        month,
+        members: g.members.map(uid => {
+          const m = { uid, name: nameOf(uid), played: 0, total: 0, best: 0, families: {} };
+          ns.forEach(n => {
+            const p = playOf(uid, n);
+            if (!p || p.status !== "done") return;
+            m.played++; m.total += p.score; m.best = Math.max(m.best, p.score);
+            const fam = f => (m.families[f] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 });
+            p.categories.forEach(c => fam(c.family).dealt++);
+            fam(p.categories[p.skipped].family).skipped++;
+            [0, 1, 2, 3].forEach(k => { const f = fam(p.rounds[k].family); f.rounds++; f.correct += p.rounds[k].correct; });
+          });
+          return m;
+        }),
+      };
+    },
     async groupBoard(gid, n) {
       const g = st.groups[gid]; const all = entries(n);
       return g.members.map(uid => { const e = all.find(x => x.uid === uid); return { uid, name: uid === "me" ? st.me.name : (bots.find(b => b.uid === uid) || {}).name, score: e ? e.score : null, aware: e ? e.aware : null }; });

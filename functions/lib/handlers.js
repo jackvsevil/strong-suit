@@ -36,7 +36,7 @@ const startHand = (async ({ hand, ranking }, uid) => {
     const { order, skipped } = G.playOrder(ranking);
     if (!player.exists) tx.set(r.player, newPlayer(uid));
     tx.set(r.play, {
-      hand, ranking, order, skipped, categories: h.get("categories"),
+      hand, date: h.get("date") || null, ranking, order, skipped, categories: h.get("categories"),
       startedAt: FieldValue.serverTimestamp(), rounds: {}, status: "playing",
     });
     return { order, skipped };
@@ -91,6 +91,15 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
       correct, marks, late, timeMs: Number.isFinite(timeMs) ? Math.round(timeMs) : null,
       review: { prompts: round.prompts, answers: round.answers, chosen, fact: round.fact, src: round.src },
     };
+    // the month this hand belongs to, for group month tables (reads must come before writes)
+    let monthRef = null, monthSnap = null;
+    if (key === "3") {
+      const date = p.date || (await tx.get(r.hand)).get("date");
+      if (typeof date === "string" && /^\d{4}-\d{2}/.test(date)) {
+        monthRef = db.doc(`players/${uid}/months/${date.slice(0, 7)}`);
+        monthSnap = await tx.get(monthRef);
+      }
+    }
     const upd = { current: FieldValue.delete() };
     let final = null;
     if (key === "bonus") upd.bonus = result;
@@ -118,6 +127,10 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
             awareTotal: FieldValue.increment(final.aware), bestScore: Math.max(st.bestScore || 0, final.score),
             streak, bestStreak: Math.max(st.bestStreak || 0, streak), lastHand: hand, families,
           },
+        }, { merge: true });
+        if (monthRef) tx.set(monthRef, {
+          played: FieldValue.increment(1), totalScore: FieldValue.increment(final.score), awareTotal: FieldValue.increment(final.aware),
+          best: Math.max((monthSnap.exists && monthSnap.get("best")) || 0, final.score), families,
         }, { merge: true });
         final.name = pl.name;
       }
@@ -248,15 +261,77 @@ const leaveGroup = (async ({ groupId }, uid) => {
   return { ok: true };
 });
 
+/* ---------- Group pages: only members can look, and only the server reads other players' plays ---------- */
+async function groupMembers(groupId, uid) {
+  if (typeof groupId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(groupId)) fail("invalid-argument", "Unknown group.");
+  const gref = db.doc(`groups/${groupId}`);
+  const me = await gref.collection("members").doc(uid).get();
+  if (!me.exists) fail("permission-denied", "You're not in that group.");
+  const ms = await gref.collection("members").get();
+  return ms.docs.map(d => ({ uid: d.id, name: d.get("name") }));
+}
+
+// One hand: everyone's score, and, once you've finished it yourself, how they ranked it and what they picked.
+const groupDay = (async ({ groupId, hand }, uid) => {
+  needHand(hand);
+  const members = await groupMembers(groupId, uid);
+  const h = await db.doc(`hands/${hand}`).get();
+  if (!h.exists || h.get("opensAt").toMillis() > now()) fail("not-found", "That hand isn't open yet.");
+  const plays = await Promise.all(members.map(m => db.doc(`players/${m.uid}/plays/${hand}`).get()));
+  const byUid = Object.fromEntries(members.map((m, i) => [m.uid, plays[i].exists ? plays[i].data() : null]));
+  const mine = byUid[uid];
+  const canSee = !!(mine && mine.status === "done");
+  const categories = h.get("categories").map(c => ({ slot: c.slot, label: c.label, family: c.family }));
+  const rows = members.map(m => {
+    const p = byUid[m.uid];
+    const row = { uid: m.uid, name: m.name, status: p ? p.status : null };
+    if (p && p.status === "done") Object.assign(row, { score: p.score, best: p.best, aware: p.aware });
+    if (canSee && p && p.status === "done") Object.assign(row, { ranking: p.ranking, skipped: p.skipped });
+    return row;
+  });
+  const out = { hand, date: h.get("date") || null, categories, members: rows, canSee, bonusDone: !!(mine && mine.bonus) };
+  if (!canSee) return out;
+  const keys = (await db.doc(`handKeys/${hand}`).get()).get("rounds");
+  out.rounds = categories.map(c => {
+    if (c.slot === mine.skipped && !mine.bonus) return { slot: c.slot, locked: true };   // don't spoil your bonus round
+    const k = keys[c.slot], picks = {};
+    members.forEach(m => {
+      const p = byUid[m.uid];
+      if (!p || p.status !== "done") return;
+      const r = Object.values(p.rounds || {}).find(x => x.slot === c.slot) || (p.bonus && p.bonus.slot === c.slot ? p.bonus : null);
+      picks[m.uid] = r ? { mult: r.mult, chosen: r.review.chosen, correct: r.correct } : { mult: null };
+    });
+    return { slot: c.slot, prompts: k.prompts, answers: k.answers, fact: k.fact, src: k.src, picks };
+  });
+  return out;
+});
+
+// A month ("2026-10") or all time ("all"): totals, and per-subject rounds, pairs right and skips for each member.
+const groupMonth = (async ({ groupId, month }, uid) => {
+  if (month !== "all" && !(typeof month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(month))) fail("invalid-argument", "Unknown month.");
+  const members = await groupMembers(groupId, uid);
+  const docs = await Promise.all(members.map(m => db.doc(month === "all" ? `players/${m.uid}` : `players/${m.uid}/months/${month}`).get()));
+  const fams = f => Object.fromEntries(Object.entries(f || {}).map(([k, v]) => [k, { dealt: v.dealt || 0, skipped: v.skipped || 0, rounds: v.rounds || 0, correct: v.correct || 0 }]));
+  return {
+    month,
+    members: members.map((m, i) => {
+      const d = docs[i].exists ? docs[i].data() : {};
+      const s = month === "all" ? d.stats || {} : d;
+      return { uid: m.uid, name: m.name, played: s.played || 0, total: s.totalScore || 0, best: (month === "all" ? s.bestScore : s.best) || 0, families: fams(s.families) };
+    }),
+  };
+});
+
 /* ---------- Delete everything about a player ---------- */
 const deleteAccount = (async (_, uid) => {
   const pref = db.doc(`players/${uid}`);
   const p = await pref.get();
   for (const g of (p.exists && p.get("groupIds")) || []) await leave(uid, g);
   const plays = await pref.collection("plays").get();
+  const months = await pref.collection("months").get();
   const secrets = await db.collection("playSecrets").where("uid", "==", uid).get();
   const waits = await db.collection("waitlist").where("uid", "==", uid).get();
-  const docs = [...plays.docs.map(d => d.ref), ...plays.docs.map(d => db.doc(`leaderboards/${d.id}/entries/${uid}`)), ...secrets.docs.map(d => d.ref), ...waits.docs.map(d => d.ref), pref];
+  const docs = [...plays.docs.map(d => d.ref), ...months.docs.map(d => d.ref), ...plays.docs.map(d => db.doc(`leaderboards/${d.id}/entries/${uid}`)), ...secrets.docs.map(d => d.ref), ...waits.docs.map(d => d.ref), pref];
   for (let i = 0; i < docs.length; i += 400) {
     const b = db.batch(); docs.slice(i, i + 400).forEach(d => b.delete(d)); await b.commit();
   }
@@ -273,5 +348,5 @@ const joinWaitlist = (async ({ email }, uid) => {
   return { ok: true };
 });
 
-  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, deleteAccount, joinWaitlist };
+  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, groupDay, groupMonth, deleteAccount, joinWaitlist };
 }

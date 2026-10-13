@@ -11,11 +11,11 @@ const famLabel = f => '<span class="emo" aria-hidden="true">' + (FAMILY_EMOJI[f]
 const first = label => String(label).split(" → ")[0];
 
 /* ---------- small UI helpers ---------- */
-const SCREENS = ["loading", "home", "setup", "ready", "round", "reveal", "results", "board", "groups", "profile"];
+const SCREENS = ["loading", "home", "setup", "ready", "round", "reveal", "results", "board", "groups", "group", "profile"];
 function show(id) {
   document.body.classList.toggle("inround", id === "round");
   SCREENS.forEach(s => ($(s).hidden = s !== id));
-  document.querySelectorAll(".nav button[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === id));
+  document.querySelectorAll(".nav button[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === (id === "group" ? "groups" : id)));
   window.scrollTo(0, 0);
 }
 function barVis() { $("bar").hidden = !$("barInner").children.length && $("coach").hidden; }
@@ -537,31 +537,229 @@ async function renderGroups() {
   const groups = await api.groups().catch(e => (toast(e.message), []));
   list.innerHTML = groups.length ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
   groups.forEach(g => {
-    const d = document.createElement("div"); d.className = "gcard";
-    d.innerHTML = '<div><b></b><p class="small muted"></p></div><div class="gbtns"><button class="btn small">Invite</button><button class="btn ghost small">Leave</button></div>';
-    d.querySelector("b").textContent = g.name;
-    d.querySelector("p").textContent = g.memberCount + " of " + g.cap + " members · code " + g.code;
-    const [inv, lv] = d.querySelectorAll("button");
-    inv.onclick = () => share("Join my Strong Suit group \"" + g.name + "\": " + SITE + "/?join=" + g.code + "\n(or enter code " + g.code + ")");
-    lv.onclick = async () => {
-      if (!(await ask({ title: "Leave " + g.name + "?", text: g.memberCount <= 1 ? "You're the last member, so the group will be deleted." : "You can rejoin later with the code.", ok: "Leave", danger: true }))) return;
-      busy(true); try { await api.leaveGroup(g.id); toast("Left " + g.name); } catch (e) { toast(e.message); } finally { busy(false); renderGroups(); }
-    };
+    const d = document.createElement("button"); d.className = "row tap gopen";
+    d.innerHTML = '<div class="m">♣</div><div class="t"><small></small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div>';
+    d.querySelector(".t").prepend(g.name);
+    d.querySelector("small").textContent = g.memberCount + " of " + g.cap + " members";
+    d.onclick = () => renderGroup(g.id);
     list.appendChild(d);
   });
+}
+
+/* ---------- one group: table (day, month, all time), everyone's picks, and subject stats ---------- */
+async function renderGroup(gid) {
+  show("group"); bar([]);
+  $("gBody").innerHTML = '<p class="muted small">Loading…</p>';
+  ["gTabs", "gPeriods", "gStep"].forEach(id => ($(id).hidden = true));
+  const g = await api.group(gid).catch(() => null);
+  if (!g) { toast("Couldn't open that group."); return renderGroups(); }
+  $("gName").textContent = g.name;
+  $("gMeta").textContent = g.memberCount + " of " + g.cap + " members · code " + g.code;
+  $("gInvite").onclick = () => share("Join my Strong Suit group \"" + g.name + "\": " + SITE + "/?join=" + g.code + "\n(or enter code " + g.code + ")");
+  $("gLeave").onclick = async () => {
+    if (!(await ask({ title: "Leave " + g.name + "?", text: g.memberCount <= 1 ? "You're the last member, so the group will be deleted." : "You can rejoin later with the code.", ok: "Leave", danger: true }))) return;
+    busy(true); try { await api.leaveGroup(g.id); toast("Left " + g.name); await refreshMe(); } catch (e) { toast(e.message); } finally { busy(false); renderGroups(); }
+  };
+  const launch = S.config.launchDate;
+  const open = launch && S.n >= 1;
+  const thisMonth = ymd(new Date()).slice(0, 7);
+  GV = { gid, tab: "table", period: "day", hand: S.n, month: thisMonth, firstMonth: open ? launch.slice(0, 7) : thisMonth, day: {}, mon: {}, seq: 0 };
+  document.querySelectorAll("#gTabs button").forEach(b => (b.onclick = () => { GV.tab = b.dataset.tab; drawGroup(); }));
+  document.querySelectorAll("#gPeriods button").forEach(b => (b.onclick = () => { GV.period = b.dataset.period; drawGroup(); }));
+  $("gPrev").onclick = () => stepGroup(-1); $("gNext").onclick = () => stepGroup(1);
+  if (!open) {
+    ["gTabs", "gPeriods", "gStep"].forEach(id => ($(id).hidden = true));
+    $("gBody").innerHTML = '<p class="muted">Scores, picks and subject stats appear here once Hand #1 opens' + (launch ? " on " + fmtDay(dateOf(launch, 1)) : "") + ".</p>";
+    return;
+  }
+  $("gTabs").hidden = false;
+  drawGroup();
+}
+
+/* Group page state: which tab, which period, and data already fetched this visit. */
+let GV = null;
+const monthAdd = (m, k) => { const [y, mo] = m.split("-").map(Number); const d = new Date(y, mo - 1 + k, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+const monthName = m => { const [y, mo] = m.split("-").map(Number); return new Date(y, mo - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" }); };
+const avg1 = (c, r) => (r ? (c / r).toFixed(1) : "–");
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+function stepGroup(k) {
+  const per = groupPeriod();
+  if (per === "day") GV.hand = Math.min(S.n, Math.max(1, GV.hand + k));
+  else if (per === "month") { const m = monthAdd(GV.month, k); if (m >= GV.firstMonth && m <= ymd(new Date()).slice(0, 7)) GV.month = m; }
+  drawGroup();
+}
+function groupPeriod() {
+  if (GV.tab === "picks") return "day";
+  if (GV.tab === "subjects" && GV.period === "day") return "month";
+  return GV.period;
+}
+function groupDay(n) { return (GV.day[n] ||= api.groupDay(GV.gid, n).catch(e => { delete GV.day[n]; throw e; })); }
+function groupMonth(m) { return (GV.mon[m] ||= api.groupMonth(GV.gid, m).catch(e => { delete GV.mon[m]; throw e; })); }
+
+async function drawGroup() {
+  const per = groupPeriod(), seq = ++GV.seq;
+  document.querySelectorAll("#gTabs button").forEach(b => { b.classList.toggle("on", b.dataset.tab === GV.tab); b.setAttribute("aria-selected", b.dataset.tab === GV.tab); });
+  $("gPeriods").hidden = GV.tab === "picks";
+  document.querySelectorAll("#gPeriods button").forEach(b => { b.hidden = GV.tab === "subjects" && b.dataset.period === "day"; b.classList.toggle("on", b.dataset.period === per); });
+  $("gStep").hidden = per === "all";
+  if (per === "day") {
+    $("gWhen").textContent = "Hand #" + GV.hand;
+    $("gWhenSub").textContent = fmtDay(dateOf(S.config.launchDate, GV.hand)) + (GV.hand === S.n ? " · today" : "");
+    $("gPrev").disabled = GV.hand <= 1; $("gNext").disabled = GV.hand >= S.n;
+  } else if (per === "month") {
+    $("gWhen").textContent = monthName(GV.month);
+    $("gWhenSub").textContent = GV.month === ymd(new Date()).slice(0, 7) ? "this month" : "";
+    $("gPrev").disabled = GV.month <= GV.firstMonth; $("gNext").disabled = GV.month >= ymd(new Date()).slice(0, 7);
+  }
+  const body = $("gBody");
+  body.innerHTML = '<p class="muted small">Loading…</p>';
+  try {
+    const data = per === "day" ? await groupDay(GV.hand) : await groupMonth(per === "all" ? "all" : GV.month);
+    if (seq !== GV.seq) return;   // they've moved on
+    body.innerHTML = GV.tab === "picks" ? picksHtml(data) : GV.tab === "subjects" ? subjectsHtml(data, per) : per === "day" ? dayHtml(data) : monthHtml(data, per);
+    body.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => openHand(+b.dataset.open)));
+  } catch (e) { if (seq === GV.seq) body.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; }
+}
+
+const tiles = cells => '<div class="stats">' + cells.map(([l, v]) => "<div><b>" + esc(v) + "</b><span>" + esc(l) + "</span></div>").join("") + "</div>";
+function lbRows(rows) {   // rows: { uid, name, value (null = didn't play), sub, none }
+  const me = api.account().uid;
+  let rank = 0, prev = null;
+  return rows.map((r, i) => {
+    if (r.value !== prev) { rank = i + 1; prev = r.value; }
+    return '<div class="lb' + (r.uid === me ? " me" : "") + '"><span class="rk">' + (r.value === null ? "–" : rank) + '</span><span class="nm">' + esc(r.name) + (r.uid === me ? " (you)" : "") +
+      (r.sub ? "<small>" + esc(r.sub) + "</small>" : "") + '</span><span class="sc">' + (r.value === null ? "<small>" + esc(r.none) + "</small>" : r.value) + "</span></div>";
+  }).join("");
+}
+const byValue = (a, b) => (b.value ?? -1) - (a.value ?? -1) || a.name.localeCompare(b.name);
+
+function dayHtml(d) {
+  const rows = d.members.map(m => {
+    const done = m.status === "done";
+    let sub = "";
+    if (done) {
+      const sk = m.skipped !== undefined ? d.categories[m.skipped] : null;
+      sub = (sk ? "Skipped " + (FAMILY_EMOJI[sk.family] || "") + " " + sk.family + " · " : "") + m.aware + "% self-awareness";
+    }
+    return { uid: m.uid, name: m.name, value: done ? m.score : null, sub, none: m.status === "playing" ? "playing" : "not played" };
+  }).sort(byValue);
+  const done = rows.filter(r => r.value !== null);
+  const top = done[0];
+  let html = tiles([
+    ["Played", done.length + "/" + rows.length],
+    ["Average", done.length ? Math.round(done.reduce((t, r) => t + r.value, 0) / done.length) : "–"],
+    ["Top score" + (top ? " · " + top.name : ""), top ? top.value : "–"],
+  ]) + '<div class="list">' + lbRows(rows) + "</div>";
+  if (!d.canSee) html += '<p class="small muted">' + (d.hand === S.n ? "Finish today's hand to see what everyone skipped and what they picked." : "You didn't finish this hand, so what everyone skipped and picked stays hidden.") + "</p>";
+  return html;
+}
+
+function monthHtml(m, per) {
+  const rows = m.members.map(x => ({
+    uid: x.uid, name: x.name, value: x.played ? x.total : null, none: "no hands",
+    sub: x.played ? x.played + (x.played === 1 ? " hand" : " hands") + " · average " + Math.round(x.total / x.played) + " · best " + x.best : "",
+  })).sort(byValue);
+  const played = m.members.reduce((t, x) => t + x.played, 0), total = m.members.reduce((t, x) => t + x.total, 0);
+  const best = m.members.reduce((b, x) => (x.played && (!b || x.best > b.best) ? x : b), null);
+  return tiles([
+    ["Hands played", played],
+    ["Average hand", played ? Math.round(total / played) : "–"],
+    ["Best hand" + (best ? " · " + best.name : ""), best ? best.best : "–"],
+  ]) + '<p class="small muted">Ranked by total points' + (per === "all" ? " since you each started" : " this month") + ".</p>" +
+    '<div class="list">' + lbRows(rows) + "</div>";
+}
+
+function picksHtml(d) {
+  if (!d.canSee) {
+    return '<div class="card"><b>No peeking</b><p class="small muted">' +
+      (d.hand === S.n ? "Play today's hand first. Then you'll see how everyone ranked their categories and what they picked for every question."
+                      : "Picks only show for hands you've finished.") + "</p>" +
+      (d.hand === S.n ? '<button class="btn" data-open="' + d.hand + '">Play hand #' + d.hand + "</button>" : "") + "</div>";
+  }
+  const me = api.account().uid;
+  const done = d.members.filter(m => m.status === "done").sort((a, b) => b.score - a.score);
+  const others = d.members.filter(m => m.status !== "done");
+  const nm = m => esc(m.name) + (m.uid === me ? " (you)" : "");
+  let html = '<div class="card"><div><b>How everyone ranked it</b><p class="small muted">Strongest first. The crossed-out one was skipped.</p></div><div class="list">' +
+    done.map(m => '<div class="rk-row"><span class="nm">' + nm(m) + '</span><span class="em">' +
+      m.ranking.map((s, i) => '<span' + (i === 4 ? ' class="sk"' : "") + ' title="' + esc(d.categories[s].label) + '">' + (FAMILY_EMOJI[d.categories[s].family] || "•") + "</span>").join("") + "</span></div>").join("") +
+    "</div>" + (others.length ? '<p class="small muted">Not finished yet: ' + others.map(nm).join(", ") + "</p>" : "") + "</div>";
+  d.rounds.forEach(r => {
+    const c = d.categories[r.slot];
+    html += '<div class="card"><div class="rhead"><b>' + famLabel(c.family) + " · " + esc(c.label) + "</b>";
+    if (r.locked) {
+      html += '</div><p class="small muted">You skipped this one. Play your bonus round to see everyone\'s picks.</p><button class="btn ghost" data-open="' + d.hand + '">Go to your bonus round</button></div>';
+      return;
+    }
+    const played = done.filter(m => r.picks[m.uid] && r.picks[m.uid].mult !== null);
+    const skipped = done.filter(m => !r.picks[m.uid] || r.picks[m.uid].mult === null);
+    html += "<small>" + (played.length ? "Average " + avg1(played.reduce((t, m) => t + r.picks[m.uid].correct, 0), played.length) + "/6" : "") + "</small></div>";
+    html += '<p class="small muted">' + played.map(m => nm(m) + " " + (r.picks[m.uid].mult ? "×" + r.picks[m.uid].mult : "★ bonus")).join(" · ") +
+      (skipped.length ? (played.length ? " · " : "") + "skipped by " + skipped.map(nm).join(", ") : "") + "</p>";
+    r.prompts.forEach((p, i) => {
+      html += '<div class="pick"><div class="q">' + esc(p) + " → <span>" + esc(r.answers[i]) + '</span></div><div class="who">' +
+        played.map(m => {
+          const ch = r.picks[m.uid].chosen[i];
+          if (ch === i) return "<i>" + nm(m) + "</i>";
+          return '<i class="no">' + nm(m) + ": <small>" + (ch === null || ch === undefined ? "no answer" : esc(r.answers[ch])) + "</small></i>";
+        }).join("") + "</div></div>";
+    });
+    if (r.fact) html += '<p class="rfact">' + esc(r.fact) + "</p>";
+    html += "</div>";
+  });
+  return html;
+}
+
+function subjectsHtml(m, per) {
+  const me = api.account().uid;
+  const when = per === "all" ? "yet" : "in " + monthName(GV.month).split(" ")[0];
+  if (!m.members.some(x => x.played)) return '<p class="muted">No hands played ' + when + ".</p>";
+  const fams = {};
+  m.members.forEach(x => Object.entries(x.families).forEach(([f, v]) => {
+    const t = (fams[f] ||= { f, dealt: 0, skipped: 0, rounds: 0, correct: 0, people: [] });
+    t.dealt += v.dealt; t.skipped += v.skipped; t.rounds += v.rounds; t.correct += v.correct;
+    if (v.dealt || v.rounds) t.people.push({ uid: x.uid, name: x.name, ...v });
+  }));
+  const list = Object.values(fams);
+  const subj = list.slice().sort((a, b) => (b.rounds ? b.correct / b.rounds : -1) - (a.rounds ? a.correct / a.rounds : -1) || b.dealt - a.dealt);
+  let html = '<div><b>Subject leaderboards</b><p class="small muted">Average pairs right per round, out of 6. Tap a subject to see everyone.</p></div><div class="list">';
+  subj.forEach(t => {
+    const people = t.people.slice().sort((a, b) => (b.rounds ? b.correct / b.rounds : -1) - (a.rounds ? a.correct / a.rounds : -1) || a.name.localeCompare(b.name));
+    const lead = people[0] && people[0].rounds ? people[0] : null;
+    html += '<details class="subj"><summary><span>' + famLabel(t.f) + "<small>" + (lead ? "Top: " + esc(lead.name) + " " + avg1(lead.correct, lead.rounds) + " · " : "") +
+      t.rounds + (t.rounds === 1 ? " round" : " rounds") + "</small></span><b>" + avg1(t.correct, t.rounds) + "<small>group</small></b></summary><div class=\"list\">";
+    let rank = 0, prev = null;
+    people.forEach((p, i) => {
+      const v = p.rounds ? avg1(p.correct, p.rounds) : null;
+      if (v !== prev) { rank = i + 1; prev = v; }
+      html += '<div class="mrow' + (p.uid === me ? " me" : "") + '"><span class="r">' + (v === null ? "–" : rank) + '</span><span class="n">' + esc(p.name) + (p.uid === me ? " (you)" : "") +
+        "<small>" + p.rounds + (p.rounds === 1 ? " round" : " rounds") + " · skipped " + p.skipped + " of " + p.dealt + '</small></span><span class="v">' + (v ?? "–") + "</span></div>";
+    });
+    html += "</div></details>";
+  });
+  html += "</div>";
+  const skips = list.filter(t => t.dealt).map(t => {
+    const top = t.people.filter(p => p.dealt).sort((a, b) => b.skipped / b.dealt - a.skipped / a.dealt || b.dealt - a.dealt)[0];
+    return { ...t, rate: pct(t.skipped, t.dealt), top: top && top.skipped ? top : null };
+  }).sort((a, b) => b.rate - a.rate || b.dealt - a.dealt);
+  html += '<div class="card"><div><b>What the group skips</b><p class="small muted">How often each subject was skipped when it was dealt.</p></div><div class="list">' +
+    skips.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>" + x.skipped + " of " + x.dealt +
+      (x.top ? " · most by " + esc(x.top.name) + " (" + pct(x.top.skipped, x.top.dealt) + "%)" : "") + '</small></div><div class="barline skip"><i style="width:' + x.rate + '%"></i></div><b>' + x.rate + "%</b></div>").join("") +
+    "</div></div>";
+  return html;
 }
 async function createGroup() {
   const name = $("newGroup").value.trim();
   if (name.length < 2) return toast("Give your group a name.");
   busy(true);
-  try { const g = await api.createGroup(name); $("newGroup").value = ""; toast("Group made. Code " + g.code); await refreshMe(); renderGroups(); }
+  try { const g = await api.createGroup(name); $("newGroup").value = ""; toast("Group made. Invite your friends with the code " + g.code, 4000); await refreshMe(); renderGroup(g.groupId); }
   catch (e) { toast(e.message); } finally { busy(false); }
 }
 async function joinGroup(code) {
   code = (code || $("joinCode").value).trim();
   if (!code) return toast("Enter a group code.");
   busy(true);
-  try { const g = await api.joinGroup(code); $("joinCode").value = ""; toast("You're in " + g.name); await refreshMe(); renderGroups(); }
+  try { const g = await api.joinGroup(code); $("joinCode").value = ""; toast("You're in " + g.name); await refreshMe(); renderGroup(g.groupId); }
   catch (e) { toast(e.message); } finally { busy(false); }
 }
 
@@ -651,6 +849,7 @@ function wire() {
   document.addEventListener("keydown", e => { if (e.key === "Escape") { if (!$("howto").hidden) closeHow(); if (!$("ask").hidden) $("askCancel").click(); } });
   $("bonusBtn").onclick = playBonus;
   document.querySelectorAll("[data-home]").forEach(b => (b.onclick = renderHome));
+  document.querySelectorAll("[data-groups]").forEach(b => (b.onclick = renderGroups));
   $("homeLink").onclick = e => { e.preventDefault(); if (!document.body.classList.contains("inround")) renderHome(); };
   document.querySelectorAll(".nav button[data-go]").forEach(b => (b.onclick = () => ({ board: renderBoard, groups: renderGroups, profile: renderProfile })[b.dataset.go]()));
   $("waitBtn").onclick = joinWaitlist;
@@ -672,7 +871,7 @@ async function boot() {
   const join = new URLSearchParams(location.search).get("join");
   if (join) {
     history.replaceState(null, "", location.pathname + (api.demo ? "?demo=1" : ""));
-    if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". Your name and daily scores will be shown to its members.", ok: "Join" })) await joinGroup(join);
+    if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". Members will see your name, scores and subject stats, and, once they've played a hand, your answers.", ok: "Join" })) await joinGroup(join);
     return;
   }
   let seen = false; try { seen = localStorage.getItem("ss_seen_howto") === "1"; } catch (_) {}

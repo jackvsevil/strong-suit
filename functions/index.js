@@ -22,5 +22,7 @@ export const getMe = call(h.getMe);
 export const createGroup = call(h.createGroup);
 export const joinGroup = call(h.joinGroup);
 export const leaveGroup = call(h.leaveGroup);
+export const groupDay = call(h.groupDay);
+export const groupMonth = call(h.groupMonth);
 export const deleteAccount = call(h.deleteAccount);
 export const joinWaitlist = call(h.joinWaitlist);

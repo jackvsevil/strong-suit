@@ -158,3 +158,65 @@ test("waitlist stores one entry per address and is removed with the account", as
   await h.deleteAccount({}, "w");
   assert.equal([...db.store.keys()].filter(k => k.startsWith("waitlist/")).length, 0);
 });
+
+async function playHand(h, uid, ranking, want, bonus) {
+  await h.startHand({ hand: 1, ranking }, uid);
+  for (let k = 0; k < 4; k++) {
+    const d = await h.startRound({ hand: 1 }, uid);
+    await h.submitRound({ hand: 1, key: d.key, picks: picksFor(d, want[k]), timeMs: 1000 }, uid);
+  }
+  if (bonus !== undefined) {
+    const d = await h.startRound({ hand: 1, bonus: true }, uid);
+    await h.submitRound({ hand: 1, key: "bonus", picks: picksFor(d, bonus), timeMs: 1000 }, uid);
+  }
+}
+
+test("group pages: day table, picks only after you've played, month and all-time stats", async () => {
+  const { db, h } = setup();
+  db.store.get("hands/1").date = "2026-11-01";
+  const g = await h.createGroup({ name: "Pub quiz" }, "a");
+  await h.joinGroup({ code: g.code }, "b");
+  await code(h.groupDay({ groupId: g.groupId, hand: 1 }, "outsider"), "permission-denied");
+  await code(h.groupMonth({ groupId: g.groupId, month: "2026-13" }, "a"), "invalid-argument");
+  await code(h.groupDay({ groupId: g.groupId, hand: 2 }, "a"), "not-found");   // not open yet
+
+  await playHand(h, "b", [0, 1, 2, 3, 4], [6, 6, 6, 6], 3);   // b skips slot 4, then plays it as the bonus
+  let d = await h.groupDay({ groupId: g.groupId, hand: 1 }, "a");
+  assert.equal(d.canSee, false);
+  assert.equal(d.rounds, undefined, "no picks before you've played");
+  const rb = d.members.find(m => m.uid === "b");
+  assert.equal(rb.score, 60);
+  assert.equal(rb.ranking, undefined);
+
+  await playHand(h, "a", [4, 3, 2, 1, 0], [1, 2, 3, 4]);   // a skips slot 0
+  d = await h.groupDay({ groupId: g.groupId, hand: 1 }, "a");
+  assert.equal(d.canSee, true);
+  assert.deepEqual(d.rounds[0], { slot: 0, locked: true }, "your skipped round stays hidden until your bonus");
+  const r4 = d.rounds[4];
+  assert.equal(r4.answers[0], "A4.0");
+  assert.equal(r4.picks.b.mult, 0);          // b played it as the bonus
+  assert.equal(r4.picks.b.correct, 3);
+  assert.equal(r4.picks.a.mult, 4);          // a's strongest: played last, ×4
+  assert.equal(r4.picks.a.chosen.length, 6);
+  assert.deepEqual(d.members.find(m => m.uid === "b").ranking, [0, 1, 2, 3, 4]);
+  // the bonus unlocks it
+  const bd = await h.startRound({ hand: 1, bonus: true }, "a");
+  await h.submitRound({ hand: 1, key: "bonus", picks: picksFor(bd, 2), timeMs: 1000 }, "a");
+  d = await h.groupDay({ groupId: g.groupId, hand: 1 }, "a");
+  assert.equal(d.rounds[0].picks.a.mult, 0);
+  assert.equal(d.rounds[0].picks.b.mult, 4);
+
+  const m = await h.groupMonth({ groupId: g.groupId, month: "2026-11" }, "b");
+  const ma = m.members.find(x => x.uid === "a"), mb = m.members.find(x => x.uid === "b");
+  assert.equal(mb.played, 1); assert.equal(mb.total, 60); assert.equal(mb.best, 60);
+  assert.equal(ma.total, 1 + 4 + 9 + 16);
+  assert.deepEqual(mb.families["Language"], { dealt: 1, skipped: 1, rounds: 0, correct: 0 });   // slot 4 is Language
+  assert.deepEqual(ma.families["Language"], { dealt: 1, skipped: 0, rounds: 1, correct: 4 });
+  const all = await h.groupMonth({ groupId: g.groupId, month: "all" }, "a");
+  assert.equal(all.members.find(x => x.uid === "b").total, 60);
+  const empty = await h.groupMonth({ groupId: g.groupId, month: "2026-10" }, "a");
+  assert.equal(empty.members[0].played, 0);
+
+  await h.deleteAccount({}, "b");
+  assert.equal(db.store.get("players/b/months/2026-11"), undefined);
+});
