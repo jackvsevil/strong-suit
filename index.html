@@ -402,9 +402,10 @@ function parseYmd(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,
 const today = new Date(); const todayStr = ymd(today);
 if(!store.first){ store.first = todayStr; save(); }
 const unlockAll = location.hash === "#all";
-function daysSinceFirst(){ return Math.round((parseYmd(todayStr) - parseYmd(store.first)) / 86400000); }
-function unlockedCount(){ return unlockAll ? DAYS.length : Math.min(DAYS.length, daysSinceFirst() + 1); }
-function unlockDate(i){ const d = parseYmd(store.first); d.setDate(d.getDate()+i); return d; }
+// Fixed opening dates for the friends-and-family test: the same hand for everyone, opening at local midnight
+const OPEN_DATES = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"];
+function unlockedCount(){ return unlockAll ? DAYS.length : Math.max(1, OPEN_DATES.filter(d => d <= todayStr).length); }
+function unlockDate(i){ return parseYmd(OPEN_DATES[i]); }
 const fmtDay = d => d.toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short"});
 
 /* ---------- helpers ---------- */
