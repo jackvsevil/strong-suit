@@ -4,14 +4,21 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write   # keyless sign-in to Google Cloud
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: actions/setup-node@v4
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: strong-suit
+          node-version: 22
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/310245852159/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-deploy@strong-suit.iam.gserviceaccount.com
+      - run: npx --yes firebase-tools@14.27.0 deploy --only hosting --project strong-suit --non-interactive
+        env:
+          NO_COLOR: "1"

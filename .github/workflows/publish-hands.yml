@@ -18,6 +18,9 @@ on:
         description: "Also replace hands that are already open (careful)"
         type: boolean
         default: false
+permissions:
+  contents: read
+  id-token: write   # keyless sign-in to Google Cloud
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -31,7 +34,8 @@ jobs:
       - run: npm ci --prefix scripts
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          workload_identity_provider: projects/310245852159/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-deploy@strong-suit.iam.gserviceaccount.com
       - run: node scripts/publish-hands.mjs
         env:
           SHEET_ID: 1Wlkhf0T5FcJV5zhuox7Jso8hWo0jSb9xEp38lnRtGZU
