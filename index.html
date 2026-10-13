@@ -18,14 +18,14 @@ window.addEventListener("error", function(e){
 </script>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231E3B70'/><path fill='%23fff' d='M32 9C25 19 11 26 11 37.5 11 45 16.5 50 23 50c3.6 0 6.5-1.6 8-3.8-.4 4.6-2.6 8.6-6.5 10.8h15c-3.9-2.2-6.1-6.2-6.5-10.8 1.5 2.2 4.4 3.8 8 3.8 6.5 0 12-5 12-12.5C53 26 39 19 32 9Z'/></svg>">
 <meta name="description" content="Five categories every day. Rank them, skip your weakest and play the rest for rising stakes. How well do you know your strong suit?">
-<!-- Sharing and search. When the game moves to its own domain, replace https://jackvsevil.github.io/strong-suit/ in these tags. -->
-<link rel="canonical" href="https://jackvsevil.github.io/strong-suit/">
+<!-- Sharing and search -->
+<link rel="canonical" href="https://strongsuitgame.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Strong Suit">
-<meta property="og:url" content="https://jackvsevil.github.io/strong-suit/">
+<meta property="og:url" content="https://strongsuitgame.com/">
 <meta property="og:title" content="Strong Suit · The daily quiz that plays to your strengths">
 <meta property="og:description" content="Five categories. Skip your weakest. Play the rest for rising stakes. How well do you know your strong suit?">
-<meta property="og:image" content="https://jackvsevil.github.io/strong-suit/og-image.png">
+<meta property="og:image" content="https://strongsuitgame.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Strong Suit: the daily quiz that plays to your strengths. Multipliers rise from ×1 to ×4 beside a fan of playing cards.">
@@ -33,7 +33,7 @@ window.addEventListener("error", function(e){
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Strong Suit · The daily quiz that plays to your strengths">
 <meta name="twitter:description" content="Five categories. Skip your weakest. Play the rest for rising stakes. How well do you know your strong suit?">
-<meta name="twitter:image" content="https://jackvsevil.github.io/strong-suit/og-image.png">
+<meta name="twitter:image" content="https://strongsuitgame.com/og-image.png">
 <meta name="application-name" content="Strong Suit">
 <meta name="apple-mobile-web-app-title" content="Strong Suit">
 <meta name="theme-color" content="#E6EBF3" media="(prefers-color-scheme: light)">
@@ -228,6 +228,20 @@ body.inround.tut .wrap{padding-bottom:230px}
 body.tut .wrap{padding-bottom:230px}
 .sheet .btn.ghost{flex:none}
 .chip,.slot.filled{touch-action:none;user-select:none;-webkit-user-select:none}
+/* Desktop and tablet: more vertical breathing room, and the action bar sits just under the content instead of at the screen's bottom edge */
+@media (min-width:700px) and (min-height:700px){
+  .wrap{min-height:auto;padding-block:clamp(28px,6vh,64px) 28px}
+  .top{padding-block:4px 30px}
+  .stack{gap:24px}
+  .hand{gap:14px}
+  .cat{padding:18px 18px 18px 14px}
+  .fan{margin:16px auto 40px}
+  #pairs{gap:12px}
+  .pool{padding-top:14px}
+  .ready{min-height:auto;padding-block:8vh}
+  .bar{position:sticky;padding-top:28px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+  body.inround .wrap,body.tut .wrap,body.inround.tut .wrap{padding-bottom:28px}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
