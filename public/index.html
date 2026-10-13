@@ -44,21 +44,18 @@ window.addEventListener("error", function(e){
 :root{
   --table:#E6EBF3; --card:#FFFFFF; --ink:#15213B; --muted:#5A6580; --line:#CDD5E3;
   --back:#1E3B70; --back-2:#2C4F8E; --on-back:#FFFFFF;
-  --red:#C3192C; --amber:#A86A10; --yellow:#E2B007; --good:#23764A; --bad:#B23A1F; --good-bg:#E4F2EA; --bad-bg:#F8E7E2;
-  --shadow:0 1px 0 rgba(21,33,59,.06),0 6px 18px -10px rgba(21,33,59,.35);
+  --red:#C3192C; --amber:#A86A10; --yellow:#E2B007; --good:#23764A; --bad:#B23A1F; --good-bg:#E4F2EA; --bad-bg:#F8E7E2;  --shadow:0 1px 0 rgba(21,33,59,.06),0 6px 18px -10px rgba(21,33,59,.35);
   --display:"Gabarito","Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
   --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
   --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424;
-  --red:#FF6F7D; --amber:#F2B544; --yellow:#F5D04C; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
-  --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}}
+  --red:#FF6F7D; --amber:#F2B544; --yellow:#F5D04C; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;  --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}}
 :root[data-theme="dark"]{
   --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
   --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424;
-  --red:#FF6F7D; --amber:#F2B544; --yellow:#F5D04C; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;
-  --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}
+  --red:#FF6F7D; --amber:#F2B544; --yellow:#F5D04C; --good:#62D394; --bad:#FF8C6B; --good-bg:#16352A; --bad-bg:#3A1F1A;  --shadow:0 1px 0 rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.8); color-scheme:dark}
 
 html,body{height:100%}
 body{background:var(--table);color:var(--ink);font:16px/1.45 var(--body);-webkit-font-smoothing:antialiased}
@@ -256,7 +253,8 @@ body.tut .wrap{padding-bottom:230px}
 .lockcard p{margin-top:2px}
 .pill{font-size:12px;font-weight:700;background:var(--table);color:var(--back-2);border-radius:999px;padding:5px 10px;white-space:nowrap}
 .gopen .m{color:var(--back-2)}
-#everyoneRow{background:var(--card);background:color-mix(in srgb,var(--back-2) 9%,var(--card));border-color:color-mix(in srgb,var(--back-2) 30%,var(--line))}
+#everyoneRow{background:var(--card);background:color-mix(in srgb,var(--amber) 14%,var(--card));border-color:var(--amber)}
+#everyoneRow .m{color:var(--amber)}
 .hs .m{color:var(--ink);font-size:24px;text-align:center}
 .hs.skip .m{color:var(--muted)}
 .row.tap{width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit}
