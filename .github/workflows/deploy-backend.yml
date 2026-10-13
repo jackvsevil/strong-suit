@@ -27,6 +27,6 @@ jobs:
       - name: Report errors
         if: failure()
         run: |
-          # surface the end of the log as annotations, readable without log access
-          grep -iE "error|denied|permission|requires|enable|failed" deploy.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
-          tail -15 deploy.log | while IFS= read -r l; do echo "::warning::${l//%/%25}"; done
+          # one annotation holding the end of the log (GitHub caps annotations at 10 per step)
+          msg=$(tail -60 deploy.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Deploy log (last 60 lines)::$msg"
