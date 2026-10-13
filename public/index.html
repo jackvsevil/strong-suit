@@ -288,6 +288,7 @@ body.tut .wrap{padding-bottom:230px}
 .fam-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:14px;font-weight:600}
 .barline{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
 .barline i{display:block;height:100%;background:var(--good);border-radius:99px}
+.barline.skip i{background:var(--amber)}
 .fam-row b{text-align:right;font-variant-numeric:tabular-nums}
 .fam-row .fn small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:1px}
 .helpbtn{position:absolute;top:0;right:0;z-index:6}
@@ -412,7 +413,8 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
     <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="namebar"><div><h2 id="pName"></h2><p class="small muted" id="pAccount"></p></div><button class="btn ghost small" id="nameBtn" style="flex:none">Change name</button></div>
     <div class="stats" id="pStats"></div>
-    <div class="card"><div><b>Your subjects</b><p class="small muted">Bars show the share of pairs you got right when you played each subject.</p></div><div class="list" id="pFams"></div></div>
+    <div class="card"><div><b>Your strongest subjects</b><p class="small muted">The share of pairs you got right when you played each subject.</p></div><div class="list" id="pFams"></div></div>
+    <div class="card"><div><b>What you skip</b><p class="small muted">How often you skipped each subject when it was in your hand.</p></div><div class="list" id="pSkips"></div></div>
     <div class="lockcard"><div><b>More with Plus</b><p class="small muted">Trends over time, category deep dives and groups for more than 10 people.</p></div><span class="pill">Coming soon</span></div>
     <div class="card" id="signinBox">
       <b>Save your progress</b>

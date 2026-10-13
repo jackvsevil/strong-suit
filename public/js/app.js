@@ -584,11 +584,17 @@ async function renderProfile() {
   const fams = Object.entries(st.families || {}).map(([f, x]) => ({
     f, rounds: x.rounds || 0, pct: x.rounds ? Math.round((x.correct / (x.rounds * 6)) * 100) : null, dealt: x.dealt || 0, skipped: x.skipped || 0,
   })).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.dealt - a.dealt);
-  $("pFams").innerHTML = fams.length
-    ? fams.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>" +
-        (x.dealt ? "Dealt " + x.dealt + " · skipped " + x.skipped : "Played " + x.rounds) +
-        '</small></div><div class="barline"><i style="width:' + (x.pct || 0) + '%"></i></div><b>' + (x.pct === null ? "–" : x.pct + "%") + "</b></div>").join("")
-    : '<p class="muted small">Play a few hands to see which subjects you know best and which you tend to skip.</p>';
+  const playedFams = fams.filter(x => x.rounds);
+  $("pFams").innerHTML = playedFams.length
+    ? playedFams.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>" + x.rounds + (x.rounds === 1 ? " round" : " rounds") + " played</small></div>" +
+        '<div class="barline"><i style="width:' + x.pct + '%"></i></div><b>' + x.pct + "%</b></div>").join("")
+    : '<p class="muted small">Play a few hands to see which subjects you know best.</p>';
+  const dealt = fams.filter(x => x.dealt).map(x => ({ ...x, rate: Math.round((x.skipped / x.dealt) * 100) }))
+    .sort((a, b) => b.rate - a.rate || b.dealt - a.dealt);
+  $("pSkips").innerHTML = dealt.length
+    ? dealt.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>Skipped " + x.skipped + " of " + x.dealt + (x.dealt === 1 ? " hand" : " hands") + "</small></div>" +
+        '<div class="barline skip"><i style="width:' + x.rate + '%"></i></div><b>' + x.rate + "%</b></div>").join("")
+    : '<p class="muted small">Once you\'ve played a hand, you\'ll see which subjects you tend to skip.</p>';
 }
 async function editName() {
   const name = await ask({ title: "Your name", text: "Shown on leaderboards and in your groups. 2–20 letters or numbers.", ok: "Save", input: { value: S.me && S.me.name, max: 20 } });
