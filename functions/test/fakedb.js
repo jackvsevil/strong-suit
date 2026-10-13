@@ -56,6 +56,9 @@ export function makeDb(clock = () => Date.now()) {
     path, id: path.split("/").at(-1), _doc: true,
     collection: c => collection(`${path}/${c}`),
     get: async () => snap(path, store.get(path)),
+    set: async (d, o) => write.set({ path }, d, o),
+    update: async d => write.update({ path }, d),
+    delete: async () => write.delete({ path }),
   });
   const collection = path => {
     const q = { filters: [], order: null, lim: Infinity };

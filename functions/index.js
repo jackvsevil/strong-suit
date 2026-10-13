@@ -23,3 +23,4 @@ export const createGroup = call(h.createGroup);
 export const joinGroup = call(h.joinGroup);
 export const leaveGroup = call(h.leaveGroup);
 export const deleteAccount = call(h.deleteAccount);
+export const joinWaitlist = call(h.joinWaitlist);

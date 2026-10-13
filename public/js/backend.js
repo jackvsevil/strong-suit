@@ -131,6 +131,7 @@ async function firebaseBackend(config) {
     },
     createGroup: name => call("createGroup")({ name }),
     joinGroup: code => call("joinGroup")({ code }),
+    joinWaitlist: email => call("joinWaitlist")({ email }),
     leaveGroup: groupId => call("leaveGroup")({ groupId }),
     async deleteAccount() { await call("deleteAccount")({}); await A.signOut(auth).catch(() => {}); await A.signInAnonymously(auth); },
   };
@@ -144,7 +145,8 @@ function demoBackend() {
   st.plays ||= {}; st.me ||= { name: "Player " + (1000 + Math.floor(Math.random() * 9000)), groupIds: [], stats: {} }; st.groups ||= {};
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} };
   const today = new Date();
-  const launch = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (DAYS.length - 1));
+  const pre = new URLSearchParams(location.search).has("prelaunch");   // ?demo=1&prelaunch=1 shows the countdown page
+  const launch = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (pre ? 3 : -(DAYS.length - 1)));
   const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   const hands = {};
   DAYS.forEach((cats, i) => {
@@ -206,6 +208,7 @@ function demoBackend() {
       if (!st.me.groupIds.includes(id)) { st.me.groupIds.push(id); st.groups[id].members.push("me"); st.groups[id].memberCount++; }
       save(); return { groupId: id, name: st.groups[id].name };
     },
+    async joinWaitlist(email) { st.waitlist = email; save(); return { ok: true }; },
     async leaveGroup(id) { st.me.groupIds = st.me.groupIds.filter(x => x !== id); delete st.groups[id]; save(); return { ok: true }; },
     async deleteAccount() { localStorage.removeItem(KEY); location.reload(); },
     _finalScore: finalScore,

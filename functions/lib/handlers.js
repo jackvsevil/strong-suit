@@ -1,5 +1,6 @@
 // Game handlers with their dependencies passed in, so tests can run them against an in-memory database.
 import * as G from "./game.js";
+import { createHash } from "node:crypto";
 
 export function makeHandlers({ db, FieldValue, Timestamp, auth, HttpsError, now = () => Date.now() }) {
 const LEAD_SECONDS = 3;   // the 3-2-1 countdown before the timer starts
@@ -250,7 +251,8 @@ const deleteAccount = (async (_, uid) => {
   for (const g of (p.exists && p.get("groupIds")) || []) await leave(uid, g);
   const plays = await pref.collection("plays").get();
   const secrets = await db.collection("playSecrets").where("uid", "==", uid).get();
-  const docs = [...plays.docs.map(d => d.ref), ...plays.docs.map(d => db.doc(`leaderboards/${d.id}/entries/${uid}`)), ...secrets.docs.map(d => d.ref), pref];
+  const waits = await db.collection("waitlist").where("uid", "==", uid).get();
+  const docs = [...plays.docs.map(d => d.ref), ...plays.docs.map(d => db.doc(`leaderboards/${d.id}/entries/${uid}`)), ...secrets.docs.map(d => d.ref), ...waits.docs.map(d => d.ref), pref];
   for (let i = 0; i < docs.length; i += 400) {
     const b = db.batch(); docs.slice(i, i + 400).forEach(d => b.delete(d)); await b.commit();
   }
@@ -258,5 +260,14 @@ const deleteAccount = (async (_, uid) => {
   return { ok: true };
 });
 
-  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, deleteAccount };
+/* ---------- Launch waitlist: one email on launch day, nothing else ---------- */
+const joinWaitlist = (async ({ email }, uid) => {
+  const e = typeof email === "string" ? email.trim().toLowerCase() : "";
+  if (e.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail("invalid-argument", "That doesn't look like an email address.");
+  const id = createHash("sha256").update(e).digest("hex");
+  await db.doc(`waitlist/${id}`).set({ email: e, uid, joinedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true };
+});
+
+  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, deleteAccount, joinWaitlist };
 }

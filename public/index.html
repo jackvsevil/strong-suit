@@ -327,7 +327,12 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
       <p class="muted" id="homeSub"></p>
     </div>
     <div class="homestats" id="homeStats" hidden></div>
-    <div class="lockcard"><div><b>Past hands</b><p class="small muted">Catch up on any hand you missed.</p></div><span class="pill">Plus · coming soon</span></div>
+    <div class="card" id="waitCard" hidden>
+      <b>Get a reminder on launch day</b>
+      <p class="small muted" id="waitText">Leave your email and we'll send you one message when Hand #1 opens. We won't use it for anything else. <a href="/privacy">Privacy notice</a></p>
+      <div class="field" id="waitForm"><input id="waitEmail" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email address"><button class="btn" id="waitBtn">Notify me</button></div>
+    </div>
+    <div class="lockcard" id="pastCard"><div><b>Past hands</b><p class="small muted">Catch up on any hand you missed.</p></div><span class="pill">Plus · coming soon</span></div>
   </section>
 
   <!-- SETUP -->

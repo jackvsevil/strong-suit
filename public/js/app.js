@@ -86,9 +86,13 @@ async function renderHome() {
   if (!launch || S.n < 1) {
     $("homeTitle").textContent = "Coming soon";
     $("homeSub").textContent = launch ? "Hand #1 opens on " + fmtDay(dateOf(launch, 1)) + ". Try the practice hand while you wait." : "The first hand is on its way. Try the practice hand while you wait.";
+    $("waitCard").hidden = false; $("pastCard").hidden = true;
+    let wl = null; try { wl = localStorage.getItem("ss_waitlisted"); } catch (_) {}
+    if (wl) { $("waitForm").hidden = true; $("waitText").textContent = "You're on the list. We'll email " + wl + " once, when Hand #1 opens."; }
     bar([{ label: "Try the practice hand", onClick: startTutorial }]);
     return show("home");
   }
+  $("waitCard").hidden = true; $("pastCard").hidden = false;
   $("homeTitle").textContent = "Hand #" + S.n;
   S.hand = await api.getHand(S.n).catch(() => null);
   S.play = S.hand ? await api.getPlay(S.n).catch(() => null) : null;
@@ -611,6 +615,18 @@ async function deleteAccount() {
   busy(true); try { await api.deleteAccount(); toast("Your account has been deleted."); await refreshMe(); renderHome(); } catch (e) { toast(e.message); } finally { busy(false); }
 }
 
+async function joinWaitlist() {
+  const email = $("waitEmail").value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return toast("Enter your email address.");
+  busy(true);
+  try {
+    await api.joinWaitlist(email);
+    $("waitForm").hidden = true;
+    $("waitText").textContent = "Thanks! We'll email " + email + " once, when Hand #1 opens.";
+    try { localStorage.setItem("ss_waitlisted", email); } catch (_) {}
+  } catch (e) { toast(e.message); } finally { busy(false); }
+}
+
 /* ---------- how to play ---------- */
 function openHow() { $("howto").hidden = false; $("howClose").focus(); }
 function closeHow() { $("howto").hidden = true; try { localStorage.setItem("ss_seen_howto", "1"); } catch (_) {} }
@@ -624,6 +640,7 @@ function wire() {
   document.querySelectorAll("[data-home]").forEach(b => (b.onclick = renderHome));
   $("homeLink").onclick = e => { e.preventDefault(); if (!document.body.classList.contains("inround")) renderHome(); };
   document.querySelectorAll(".nav button[data-go]").forEach(b => (b.onclick = () => ({ board: renderBoard, groups: renderGroups, profile: renderProfile })[b.dataset.go]()));
+  $("waitBtn").onclick = joinWaitlist;
   $("createBtn").onclick = createGroup; $("joinBtn").onclick = () => joinGroup();
   $("nameBtn").onclick = editName; $("googleBtn").onclick = signInGoogle; $("emailBtn").onclick = signInEmail;
   $("signOutBtn").onclick = signOut; $("deleteBtn").onclick = deleteAccount; $("practiceBtn").onclick = startTutorial;
