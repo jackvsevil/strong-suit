@@ -1,0 +1,41 @@
+# Press "Run workflow" to load hands from the category Sheet into the game.
+# Only rounds with the chosen status are published; answers go to server-only documents.
+name: Publish hands
+on:
+  workflow_dispatch:
+    inputs:
+      statuses:
+        description: "Which rounds to publish (comma-separated statuses)"
+        default: "Checked"
+      launch_date:
+        description: "Launch date override, YYYY-MM-DD (blank = use the Sheet's Summary!B10)"
+        default: ""
+      dry_run:
+        description: "Check only, don't publish"
+        type: boolean
+        default: false
+      force:
+        description: "Also replace hands that are already open (careful)"
+        type: boolean
+        default: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v1   # until launch, the publishing script lives on the v1 branch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix scripts
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - run: node scripts/publish-hands.mjs
+        env:
+          SHEET_ID: 1Wlkhf0T5FcJV5zhuox7Jso8hWo0jSb9xEp38lnRtGZU
+          STATUSES: ${{ inputs.statuses }}
+          LAUNCH_DATE: ${{ inputs.launch_date }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          FORCE: ${{ inputs.force && '1' || '0' }}
