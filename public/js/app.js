@@ -581,10 +581,14 @@ async function renderProfile() {
     ["Streak", st.streak && st.lastHand >= S.n - 1 ? st.streak : 0], ["Best streak", st.bestStreak || 0], ["Self-awareness", played ? Math.round(st.awareTotal / played) + "%" : "–"],
   ];
   $("pStats").innerHTML = cells.map(([l, v]) => "<div><b>" + esc(v) + "</b><span>" + l + "</span></div>").join("");
-  const fams = Object.entries(st.families || {}).map(([f, x]) => ({ f, pct: Math.round((x.correct / (x.rounds * 6)) * 100), rounds: x.rounds })).sort((a, b) => b.pct - a.pct);
+  const fams = Object.entries(st.families || {}).map(([f, x]) => ({
+    f, rounds: x.rounds || 0, pct: x.rounds ? Math.round((x.correct / (x.rounds * 6)) * 100) : null, dealt: x.dealt || 0, skipped: x.skipped || 0,
+  })).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.dealt - a.dealt);
   $("pFams").innerHTML = fams.length
-    ? fams.map(x => '<div class="fam-row"><span>' + famLabel(x.f) + '</span><div class="barline"><i style="width:' + x.pct + '%"></i></div><b>' + x.pct + "%</b></div>").join("")
-    : '<p class="muted small">Play a few hands to see your strongest families.</p>';
+    ? fams.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>" +
+        (x.dealt ? "Dealt " + x.dealt + " · skipped " + x.skipped : "Played " + x.rounds) +
+        '</small></div><div class="barline"><i style="width:' + (x.pct || 0) + '%"></i></div><b>' + (x.pct === null ? "–" : x.pct + "%") + "</b></div>").join("")
+    : '<p class="muted small">Play a few hands to see which subjects you know best and which you tend to skip.</p>';
 }
 async function editName() {
   const name = await ask({ title: "Your name", text: "Shown on leaderboards and in your groups. 2–20 letters or numbers.", ok: "Save", input: { value: S.me && S.me.name, max: 20 } });

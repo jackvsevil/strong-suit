@@ -165,7 +165,10 @@ function demoBackend() {
       s.bestScore = Math.max(s.bestScore || 0, p.score);
       s.streak = s.lastHand === n - 1 ? (s.streak || 0) + 1 : 1; s.bestStreak = Math.max(s.bestStreak || 0, s.streak); s.lastHand = n;
       s.families ||= {};
-      [0, 1, 2, 3].forEach(k => { const r = p.rounds[k]; const f = (s.families[r.family] ||= { rounds: 0, correct: 0 }); f.rounds++; f.correct += r.correct; });
+      const fam = f => (s.families[f] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 });
+      p.categories.forEach(c => fam(c.family).dealt++);
+      fam(p.categories[p.skipped].family).skipped++;
+      [0, 1, 2, 3].forEach(k => { const r = p.rounds[k]; const f = fam(r.family); f.rounds++; f.correct += r.correct; });
     },
   });
   const entries = n => {

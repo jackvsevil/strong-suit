@@ -38,9 +38,7 @@ window.addEventListener("error", function(e){
 <meta name="apple-mobile-web-app-title" content="Strong Suit">
 <meta name="theme-color" content="#E6EBF3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0C1424" media="(prefers-color-scheme: dark)">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500..800&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="fonts/fonts.css">
 <style>
 /* Layout: one narrow column like a hand held in one palm; categories are playing cards, multipliers are card-corner indices. */
 :root{
@@ -97,7 +95,7 @@ p{margin:0}
 .fan .cb:nth-child(1){transform:rotate(-24deg);z-index:1} .fan .cb:nth-child(2){transform:rotate(-12deg);z-index:2} .fan .cb:nth-child(3){transform:rotate(0);z-index:5}
 .fan .cb:nth-child(4){transform:rotate(12deg);z-index:4} .fan .cb:nth-child(5){transform:rotate(24deg);z-index:3}
 .fan .cb:nth-child(3)::after{content:"♠";position:absolute;inset:0;display:grid;place-items:center;font:600 46px var(--display);color:var(--on-back);opacity:.95}
-.hero{text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.hero{position:relative;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
 .hero .date{font-weight:600;color:var(--muted);font-size:15px}
 
 /* Archive */
@@ -291,6 +289,8 @@ body.tut .wrap{padding-bottom:230px}
 .barline{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
 .barline i{display:block;height:100%;background:var(--good);border-radius:99px}
 .fam-row b{text-align:right;font-variant-numeric:tabular-nums}
+.fam-row .fn small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:1px}
+.helpbtn{position:absolute;top:0;right:0;z-index:6}
 .backlink{align-self:flex-start;background:none;border:0;color:var(--back-2);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0;margin-bottom:-6px}
 .linkbtn{background:none;border:0;color:var(--bad);font-weight:600;cursor:pointer;padding:8px 0;text-align:left}
 .loading{min-height:60vh;display:grid;place-items:center;text-align:center}
@@ -311,7 +311,6 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
       <button class="iconbtn" data-go="board" aria-label="Leaderboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM17 6h3a3 3 0 0 1-3 4M7 6H4a3 3 0 0 0 3 4"/></svg></button>
       <button class="iconbtn" data-go="groups" aria-label="Groups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></button>
       <button class="iconbtn" data-go="profile" aria-label="Your profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>
-      <button class="iconbtn" id="helpBtn" aria-label="How to play">?</button>
     </nav>
   </header>
   <div class="demo" id="demoBanner" hidden>Demo mode: practice data, saved only in this browser</div>
@@ -321,6 +320,7 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
   <!-- HOME -->
   <section class="screen stack" id="home" hidden>
     <div class="hero">
+      <button class="iconbtn helpbtn" id="helpBtn" aria-label="How to play">?</button>
       <div class="fan" aria-hidden="true"><div class="cb"></div><div class="cb"></div><div class="cb"></div><div class="cb"></div><div class="cb"></div></div>
       <h1 id="homeTitle">Hand #1</h1>
       <p class="date" id="homeDate"></p>
@@ -412,7 +412,7 @@ body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:n
     <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="namebar"><div><h2 id="pName"></h2><p class="small muted" id="pAccount"></p></div><button class="btn ghost small" id="nameBtn" style="flex:none">Change name</button></div>
     <div class="stats" id="pStats"></div>
-    <div class="card"><b>Your strongest families</b><div class="list" id="pFams"></div></div>
+    <div class="card"><div><b>Your subjects</b><p class="small muted">Bars show the share of pairs you got right when you played each subject.</p></div><div class="list" id="pFams"></div></div>
     <div class="lockcard"><div><b>More with Plus</b><p class="small muted">Trends over time, category deep dives and groups for more than 10 people.</p></div><span class="pill">Coming soon</span></div>
     <div class="card" id="signinBox">
       <b>Save your progress</b>

@@ -103,9 +103,13 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
         const pl = player.exists ? player.data() : newPlayer(uid);
         const st = pl.stats || {};
         const streak = G.nextStreak(st, hand);
+        // per subject: times dealt, skipped, played, and pairs right
         const families = {};
+        const fam = f => (families[f] ||= {});
+        p.categories.forEach(c => { fam(c.family).dealt = FieldValue.increment(1); });
+        fam(p.categories[p.skipped].family).skipped = FieldValue.increment(1);
         [0, 1, 2].map(k => p.rounds[k]).concat(result).forEach(x => {
-          families[x.family] = { rounds: FieldValue.increment(1), correct: FieldValue.increment(x.correct) };
+          Object.assign(fam(x.family), { rounds: FieldValue.increment(1), correct: FieldValue.increment(x.correct) });
         });
         tx.set(r.player, {
           ...(player.exists ? {} : pl),

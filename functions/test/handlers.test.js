@@ -65,6 +65,10 @@ test("a full hand: ranking, four rounds, scoring, stats, bonus", async () => {
   assert.equal(pl.stats.streak, 1);
   assert.equal(pl.stats.families.Music.rounds, 1);
   assert.equal(pl.stats.families.Music.correct, 6);
+  assert.equal(pl.stats.families.Geography.skipped, 1, "slot 2 was skipped");
+  assert.equal(pl.stats.families.Geography.dealt, 1);
+  assert.equal(pl.stats.families.Geography.rounds, undefined);
+  assert.equal(pl.stats.families.Music.skipped, undefined);
   const lb = db.store.get("leaderboards/1");
   assert.deepEqual([lb.players, lb.totalScore, lb.tally["35"]], [1, 35, 1]);
   assert.equal(db.store.get("leaderboards/1/entries/u1").score, 35);
