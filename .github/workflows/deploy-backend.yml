@@ -19,6 +19,8 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - name: Deploy
+        env:
+          NO_COLOR: "1"
         run: |
           set -o pipefail
           npx --yes firebase-tools@14.27.0 deploy --only functions,firestore:rules,firestore:indexes --project strong-suit --non-interactive --force 2>&1 | tee deploy.log
