@@ -1,0 +1,12 @@
+:root{--table:#E6EBF3;--card:#FFFFFF;--ink:#15213B;--muted:#5A6580;--line:#CDD5E3;--link:#2C4F8E}
+@media (prefers-color-scheme:dark){:root{--table:#0C1424;--card:#16213A;--ink:#E8EDF7;--muted:#9BA7C0;--line:#2A3858;--link:#8DAEF0;color-scheme:dark}}
+body{margin:0;background:var(--table);color:var(--ink);font:16px/1.55 "Figtree",system-ui,-apple-system,"Segoe UI",sans-serif}
+.doc{max-width:680px;margin:0 auto;padding:24px 16px 64px}
+h1,h2{font-family:"Gabarito","Figtree",system-ui,sans-serif;font-weight:600;letter-spacing:-.01em;line-height:1.15}
+h1{font-size:34px;margin:16px 0 4px}
+h2{font-size:22px;margin:28px 0 8px}
+p,li{max-width:65ch}
+ul{padding-left:20px}
+li{margin-bottom:8px}
+a{color:var(--link)}
+.muted{color:var(--muted)}
