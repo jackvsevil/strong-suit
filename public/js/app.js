@@ -507,26 +507,29 @@ async function renderBoard(n = S.n) {
     const s = lb.summary;
     const when = today ? " today" : "";
     if (lb.mine && s) {
-      const above = Object.entries(s.tally || {}).reduce((t, [sc, c]) => t + (+sc > lb.mine.score ? c : 0), 0);
-      const tied = (s.tally || {})[lb.mine.score] > 1;
-      note = "You're " + (tied ? "joint " : "") + ordinal(above + 1) + " of " + s.players.toLocaleString("en-GB") + when + ".";
-      if (!rows.find(r => r.uid === myUid)) rows = rows.concat({ ...lb.mine, uid: myUid, rank: above + 1 });
+      note = "You're " + ordinal(lb.mineRank) + " of " + s.players.toLocaleString("en-GB") + when + ".";
+      if (!rows.find(r => r.uid === myUid)) rows = rows.concat({ ...lb.mine, uid: myUid, rank: lb.mineRank });
     } else if (s && s.players) note = s.players.toLocaleString("en-GB") + (s.players === 1 ? " player" : " players") + (today ? " so far today. Play to get on the board." : ".");
     else note = today ? "Nobody's played yet today." : "";
     list.innerHTML = "";
-    let rank = 0, prev = null;
     rows.forEach((r, i) => {
-      if (r.score !== prev) { rank = r.rank || i + 1; prev = r.score; }
       const d = document.createElement("div"); d.className = "lb" + (r.uid === myUid ? " me" : "");
-      d.innerHTML = '<span class="rk">' + (r.score === null ? "–" : r.rank || rank) + '</span><span class="nm"></span><span class="sc">' + (r.score === null ? '<small>not played</small>' : r.score) + "</span>";
-      d.querySelector(".nm").textContent = r.name + (r.uid === myUid ? " (you)" : "");
+      d.innerHTML = '<span class="rk">' + (r.rank || i + 1) + '</span><span class="nm"><b></b><small></small></span><span class="sc">' + r.score + "</span>";
+      d.querySelector(".nm b").textContent = r.name + (r.uid === myUid ? " (you)" : "");
+      d.querySelector(".nm small").textContent = fmtTime(r.time);
       list.appendChild(d);
     });
     if (!rows.length) list.innerHTML = '<p class="muted">No scores yet.</p>';
-    $("boardNote").textContent = note;
+    $("boardNote").textContent = note + (rows.length ? " Equal scores are split by total time across the four rounds." : "");
   } catch (e) { list.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; }
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
+/** Total time across the four rounds, e.g. "2m 41.3s". Tenths, because that's what separates equal scores. */
+const fmtTime = ms => {
+  if (!Number.isFinite(ms)) return "";
+  const s = ms / 1000, m = Math.floor(s / 60), r = (s - m * 60).toFixed(1);
+  return (m ? m + "m " : "") + r + "s";
+};
 
 /* ---------- your hands: every hand so far, newest first ---------- */
 async function renderHands() {
@@ -666,12 +669,14 @@ function lbRows(rows) {   // rows: { uid, name, value (null = didn't play), sub,
   const me = api.account().uid;
   let rank = 0, prev = null;
   return rows.map((r, i) => {
-    if (r.value !== prev) { rank = i + 1; prev = r.value; }
+    const key = r.value + "|" + (r.time ?? "");   // equal score and equal time share a place
+    if (key !== prev) { rank = i + 1; prev = key; }
     return '<div class="lb' + (r.uid === me ? " me" : "") + '"><span class="rk">' + (r.value === null ? "–" : rank) + '</span><span class="nm">' + esc(r.name) + (r.uid === me ? " (you)" : "") +
       (r.sub ? "<small>" + esc(r.sub) + "</small>" : "") + '</span><span class="sc">' + (r.value === null ? "<small>" + esc(r.none) + "</small>" : r.value) + "</span></div>";
   }).join("");
 }
-const byValue = (a, b) => (b.value ?? -1) - (a.value ?? -1) || a.name.localeCompare(b.name);
+// highest first; equal scores go to the quicker player
+const byValue = (a, b) => (b.value ?? -1) - (a.value ?? -1) || (a.time ?? Infinity) - (b.time ?? Infinity) || a.name.localeCompare(b.name);
 
 function dayHtml(d) {
   const rows = d.members.map(m => {
@@ -679,9 +684,9 @@ function dayHtml(d) {
     let sub = "";
     if (done) {
       const sk = m.skipped !== undefined ? d.categories[m.skipped] : null;
-      sub = (sk ? "Skipped " + (FAMILY_EMOJI[sk.family] || "") + " " + sk.family + " · " : "") + m.aware + "% self-awareness";
+      sub = [fmtTime(m.time), sk ? "skipped " + (FAMILY_EMOJI[sk.family] || "") + " " + sk.family : "", m.aware + "% self-aware"].filter(Boolean).join(" · ");
     }
-    return { uid: m.uid, name: m.name, value: done ? m.score : null, sub, none: m.status === "playing" ? "playing" : "not played" };
+    return { uid: m.uid, name: m.name, value: done ? m.score : null, time: done ? m.time : null, sub, none: m.status === "playing" ? "playing" : "not played" };
   }).sort(byValue);
   const done = rows.filter(r => r.value !== null);
   const top = done[0];
@@ -696,7 +701,7 @@ function dayHtml(d) {
 
 function monthHtml(m, per) {
   const rows = m.members.map(x => ({
-    uid: x.uid, name: x.name, value: x.played ? x.total : null, none: "no hands",
+    uid: x.uid, name: x.name, value: x.played ? x.total : null, time: x.played ? x.time : null, none: "no hands",
     sub: x.played ? x.played + (x.played === 1 ? " hand" : " hands") + " · average " + Math.round(x.total / x.played) + " · best " + x.best : "",
   })).sort(byValue);
   const played = m.members.reduce((t, x) => t + x.played, 0), total = m.members.reduce((t, x) => t + x.total, 0);
@@ -826,16 +831,26 @@ async function renderProfile() {
     f, rounds: x.rounds || 0, pct: x.rounds ? Math.round((x.correct / (x.rounds * 6)) * 100) : null, dealt: x.dealt || 0, skipped: x.skipped || 0,
   })).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.dealt - a.dealt);
   const playedFams = fams.filter(x => x.rounds);
-  $("pFams").innerHTML = playedFams.length
-    ? playedFams.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>" + x.rounds + (x.rounds === 1 ? " round" : " rounds") + " played</small></div>" +
-        '<div class="barline"><i style="width:' + x.pct + '%"></i></div><b>' + x.pct + "%</b></div>").join("")
-    : '<p class="muted small">Play a few hands to see which subjects you know best.</p>';
   const dealt = fams.filter(x => x.dealt).map(x => ({ ...x, rate: Math.round((x.skipped / x.dealt) * 100) }))
     .sort((a, b) => b.rate - a.rate || b.dealt - a.dealt);
-  $("pSkips").innerHTML = dealt.length
-    ? dealt.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>Skipped " + x.skipped + " of " + x.dealt + (x.dealt === 1 ? " hand" : " hands") + "</small></div>" +
-        '<div class="barline skip"><i style="width:' + x.rate + '%"></i></div><b>' + x.rate + "%</b></div>").join("")
-    : '<p class="muted small">Once you\'ve played a hand, you\'ll see which subjects you tend to skip.</p>';
+  // your bar, with everyone's average as a thin grey bar beneath it
+  const meter = (cls, mine, all) => '<div class="bars"><div class="barline' + cls + '"><i style="width:' + mine + '%"></i></div>' +
+    (all === null ? "" : '<div class="barline all" title="Everyone: ' + all + '%"><i style="width:' + all + '%"></i></div>') + "</div>";
+  const val = (mine, all) => "<b>" + mine + "%" + (all === null ? "" : "<small>" + all + "%</small>") + "</b>";
+  const drawFams = g => {
+    const right = f => (g[f] && g[f].rounds ? Math.round((g[f].correct / (g[f].rounds * 6)) * 100) : null);
+    const skip = f => (g[f] && g[f].dealt ? Math.round(((g[f].skipped || 0) / g[f].dealt) * 100) : null);
+    $("pFams").innerHTML = playedFams.length
+      ? playedFams.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>" + x.rounds + (x.rounds === 1 ? " round" : " rounds") + " played</small></div>" +
+          meter("", x.pct, right(x.f)) + val(x.pct, right(x.f)) + "</div>").join("")
+      : '<p class="muted small">Play a few hands to see which subjects you know best.</p>';
+    $("pSkips").innerHTML = dealt.length
+      ? dealt.map(x => '<div class="fam-row"><div class="fn">' + famLabel(x.f) + "<small>Skipped " + x.skipped + " of " + x.dealt + (x.dealt === 1 ? " hand" : " hands") + "</small></div>" +
+          meter(" skip", x.rate, skip(x.f)) + val(x.rate, skip(x.f)) + "</div>").join("")
+      : '<p class="muted small">Once you\'ve played a hand, you\'ll see which subjects you tend to skip.</p>';
+  };
+  drawFams({});
+  if (playedFams.length || dealt.length) api.globalFamilies().then(g => { if (!$("profile").hidden) drawFams(g); });
 }
 async function editName() {
   const name = await ask({ title: "Your name", text: "Shown on leaderboards and in your groups. 2–20 letters or numbers.", ok: "Save", input: { value: S.me && S.me.name, max: 20 } });

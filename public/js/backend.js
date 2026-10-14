@@ -108,12 +108,20 @@ async function firebaseBackend(config) {
     setName: name => call("setName")({ name }),
 
     async leaderboard(n) {
+      const entries = F.collection(db, `leaderboards/${n}/entries`);
       const [sum, top, mine] = await Promise.all([
         get(`leaderboards/${n}`),
-        F.getDocs(F.query(F.collection(db, `leaderboards/${n}/entries`), F.orderBy("score", "desc"), F.limit(20))),
+        F.getDocs(F.query(entries, F.orderBy("score", "desc"), F.orderBy("time", "asc"), F.limit(20))),   // ties go to the quicker player
         get(`leaderboards/${n}/entries/${uid()}`),
       ]);
-      return { summary: sum, top: top.docs.map(d => ({ uid: d.id, ...d.data() })), mine };
+      let mineRank = null;
+      if (mine && sum) {
+        const higher = Object.entries(sum.tally || {}).reduce((t, [sc, c]) => t + (+sc > mine.score ? c : 0), 0);
+        const quicker = await F.getCountFromServer(F.query(entries, F.where("score", "==", mine.score), F.where("time", "<", mine.time ?? 0)))
+          .then(r => r.data().count).catch(() => 0);
+        mineRank = higher + quicker + 1;
+      }
+      return { summary: sum, top: top.docs.map(d => ({ uid: d.id, ...d.data() })), mine, mineRank };
     },
     async groups() {
       const me = await get(`players/${uid()}`);
@@ -124,6 +132,7 @@ async function firebaseBackend(config) {
     async group(gid) { const g = await get(`groups/${gid}`); return g && { id: gid, ...g }; },
     groupDay: (gid, n) => call("groupDay")({ groupId: gid, hand: n }),
     groupMonth: (gid, month) => call("groupMonth")({ groupId: gid, month }),
+    globalFamilies: () => get("stats/families").then(d => (d && d.families) || {}).catch(() => ({})),
     async myPlays() {   // every hand you've started, keyed by hand number
       const qs = await F.getDocs(F.collection(db, `players/${uid()}/plays`));
       return Object.fromEntries(qs.docs.map(d => [d.id, d.data()]));
@@ -186,14 +195,15 @@ function demoBackend() {
     };
     const rounds = {}; order.forEach((slot, k) => (rounds[k] = mk(slot, k + 1)));
     const bonus = r() < 0.5 ? mk(skipped, 0) : null;
-    return { status: "done", ranking, order, skipped, categories: h.categories, rounds, bonus, ...finalScore([0, 1, 2, 3].map(k => rounds[k].correct)) };
+    const time = [0, 1, 2, 3].reduce(t => t + 12000 + Math.floor(r() * 33000), 0);
+    return { status: "done", ranking, order, skipped, categories: h.categories, rounds, bonus, time, ...finalScore([0, 1, 2, 3].map(k => rounds[k].correct)) };
   }
   const nameOf = uid => (uid === "me" ? st.me.name : (bots.find(b => b.uid === uid) || {}).name);
   const playOf = (uid, n) => (uid === "me" ? st.plays[n] || null : botPlay(bots.find(b => b.uid === uid), n));
   const entries = n => {
-    const list = bots.map(b => ({ b, p: botPlay(b, n) })).filter(x => x.p).map(({ b, p }) => ({ uid: b.uid, name: b.name, score: p.score, aware: p.aware }));
+    const list = bots.map(b => ({ b, p: botPlay(b, n) })).filter(x => x.p).map(({ b, p }) => ({ uid: b.uid, name: b.name, score: p.score, time: p.time, aware: p.aware }));
     const p = st.plays[n];
-    if (p && p.status === "done") list.push({ uid: "me", name: st.me.name, score: p.score, aware: p.aware });
+    if (p && p.status === "done") list.push({ uid: "me", name: st.me.name, score: p.score, time: p.time, aware: p.aware });
     return list;
   };
   const code = () => Array.from({ length: 6 }, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
@@ -210,9 +220,10 @@ function demoBackend() {
     startHand: engine.startHand, startRound: engine.startRound, submitRound: engine.submitRound,
     async setName(name) { st.me.name = String(name).trim().slice(0, 20); save(); return { name: st.me.name }; },
     async leaderboard(n) {
-      const list = entries(n).sort((a, b) => b.score - a.score);
+      const list = entries(n).sort((a, b) => b.score - a.score || a.time - b.time);
       const tally = {}; list.forEach(e => (tally[e.score] = (tally[e.score] || 0) + 1));
-      return { summary: { players: list.length, tally, totalScore: list.reduce((s, e) => s + e.score, 0) }, top: list.slice(0, 20), mine: list.find(e => e.uid === "me") || null };
+      const i = list.findIndex(e => e.uid === "me");
+      return { summary: { players: list.length, tally, totalScore: list.reduce((s, e) => s + e.score, 0) }, top: list.slice(0, 20), mine: i < 0 ? null : list[i], mineRank: i < 0 ? null : i + 1 };
     },
     groups: async () => st.me.groupIds.map(id => ({ id, ...st.groups[id] })),
     group: async gid => (st.groups[gid] ? { id: gid, ...st.groups[gid] } : null),
@@ -225,7 +236,7 @@ function demoBackend() {
       const mine = plays.me, canSee = !!(mine && mine.status === "done");
       const members = g.members.map(uid => {
         const p = plays[uid], row = { uid, name: nameOf(uid), status: p ? p.status : null };
-        if (p && p.status === "done") Object.assign(row, { score: p.score, best: p.best, aware: p.aware });
+        if (p && p.status === "done") Object.assign(row, { score: p.score, best: p.best, aware: p.aware, time: p.time ?? null });
         if (canSee && p && p.status === "done") Object.assign(row, { ranking: p.ranking, skipped: p.skipped });
         return row;
       });
@@ -251,11 +262,11 @@ function demoBackend() {
       return {
         month,
         members: g.members.map(uid => {
-          const m = { uid, name: nameOf(uid), played: 0, total: 0, best: 0, families: {} };
+          const m = { uid, name: nameOf(uid), played: 0, total: 0, time: 0, best: 0, families: {} };
           ns.forEach(n => {
             const p = playOf(uid, n);
             if (!p || p.status !== "done") return;
-            m.played++; m.total += p.score; m.best = Math.max(m.best, p.score);
+            m.played++; m.total += p.score; m.time += p.time || 0; m.best = Math.max(m.best, p.score);
             const fam = f => (m.families[f] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 });
             p.categories.forEach(c => fam(c.family).dealt++);
             fam(p.categories[p.skipped].family).skipped++;
@@ -266,6 +277,17 @@ function demoBackend() {
       };
     },
     myPlays: async () => structuredClone(st.plays),
+    async globalFamilies() {   // everyone's totals per subject: the bots plus you
+      const fams = {};
+      const fam = f => (fams[f] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 });
+      Object.keys(hands_).forEach(n => [...bots.map(b => botPlay(b, +n)), st.plays[n]].forEach(p => {
+        if (!p || p.status !== "done") return;
+        p.categories.forEach(c => fam(c.family).dealt++);
+        fam(p.categories[p.skipped].family).skipped++;
+        [0, 1, 2, 3].forEach(k => { const f = fam(p.rounds[k].family); f.rounds++; f.correct += p.rounds[k].correct; });
+      }));
+      return fams;
+    },
     async createGroup(name) {
       const id = "g" + Date.now(); const c = code();
       st.groups[id] = { name, code: c, memberCount: 3, cap: 10, ownerUid: "me", members: ["me", "bot1", "bot4"] };

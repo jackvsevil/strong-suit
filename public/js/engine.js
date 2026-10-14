@@ -60,6 +60,7 @@ export function makeEngine({ hands, plays = {}, onSave = () => {}, onFinish = ()
         p.rounds[key] = result;
         if (key === "3") {
           final = finalScore([0, 1, 2, 3].map(k => p.rounds[k].correct));
+          final.time = [0, 1, 2, 3].reduce((t, k) => t + Math.min(ROUND_SECONDS * 1000, p.rounds[k].timeMs || 0), 0);
           Object.assign(p, final, { status: "done", finishedAt: Date.now() });
           onFinish(n, p);
         }

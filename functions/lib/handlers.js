@@ -1,6 +1,7 @@
 // Game handlers with their dependencies passed in, so tests can run them against an in-memory database.
 import * as G from "./game.js";
 import { createHash } from "node:crypto";
+import { allowedName } from "./names.js";
 
 export function makeHandlers({ db, FieldValue, Timestamp, auth, HttpsError, now = () => Date.now() }) {
 const LEAD_SECONDS = 3;   // the 3-2-1 countdown before the timer starts
@@ -83,12 +84,14 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
     const p = play.data(), cur = p.current;
     if (!cur || cur.key !== key || !secret.exists) fail("failed-precondition", "That round isn't in play.");
     const late = now() > cur.deadline.toMillis() + G.GRACE_SECONDS * 1000;
+    // time taken by the server's clock (the round starts when the 3-2-1 countdown ends): the leaderboard tie-break
+    const serverMs = Math.min(G.ROUND_SECONDS * 1000, Math.max(0, now() - (cur.deadline.toMillis() - G.ROUND_SECONDS * 1000)));
     const { chosen, marks, correct } = G.markRound(secret.get("perm"), picks, late);
     const round = keys.get("rounds")[cur.slot];
     const cat = p.categories[cur.slot];
     const result = {
       slot: cur.slot, mult: cur.mult, label: cat.label, family: cat.family, categoryId: cat.categoryId,
-      correct, marks, late, timeMs: Number.isFinite(timeMs) ? Math.round(timeMs) : null,
+      correct, marks, late, serverMs, timeMs: Number.isFinite(timeMs) ? Math.round(timeMs) : null,
       review: { prompts: round.prompts, answers: round.answers, chosen, fact: round.fact, src: round.src },
     };
     // the month this hand belongs to, for group month tables (reads must come before writes)
@@ -108,6 +111,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
       if (key === "3") {
         const correctByRound = [0, 1, 2].map(k => p.rounds[k].correct).concat(correct);
         final = G.finalScore(correctByRound);
+        final.time = [0, 1, 2].map(k => p.rounds[k].serverMs ?? G.ROUND_SECONDS * 1000).reduce((a, b) => a + b, serverMs);
         Object.assign(upd, { status: "done", finishedAt: FieldValue.serverTimestamp(), ...final });
         const pl = player.exists ? player.data() : newPlayer(uid);
         const st = pl.stats || {};
@@ -123,16 +127,17 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
         tx.set(r.player, {
           ...(player.exists ? {} : pl),
           stats: {
-            played: FieldValue.increment(1), totalScore: FieldValue.increment(final.score),
+            played: FieldValue.increment(1), totalScore: FieldValue.increment(final.score), timeTotal: FieldValue.increment(final.time),
             awareTotal: FieldValue.increment(final.aware), bestScore: Math.max(st.bestScore || 0, final.score),
             streak, bestStreak: Math.max(st.bestStreak || 0, streak), lastHand: hand, families,
           },
         }, { merge: true });
         if (monthRef) tx.set(monthRef, {
-          played: FieldValue.increment(1), totalScore: FieldValue.increment(final.score), awareTotal: FieldValue.increment(final.aware),
+          played: FieldValue.increment(1), totalScore: FieldValue.increment(final.score), awareTotal: FieldValue.increment(final.aware), timeTotal: FieldValue.increment(final.time),
           best: Math.max((monthSnap.exists && monthSnap.get("best")) || 0, final.score), families,
         }, { merge: true });
         final.name = pl.name;
+        final.families = families;
       }
     }
     tx.update(r.play, upd);
@@ -146,16 +151,17 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
   if (out.final) {
     const f = out.final;
     b.set(db.doc(`leaderboards/${hand}`), { players: inc(1), totalScore: inc(f.score), tally: { [f.score]: inc(1) } }, { merge: true });
-    b.set(db.doc(`leaderboards/${hand}/entries/${uid}`), { name: f.name, score: f.score, aware: f.aware, at: FieldValue.serverTimestamp() });
+    b.set(db.doc(`leaderboards/${hand}/entries/${uid}`), { name: f.name, score: f.score, time: f.time, aware: f.aware, at: FieldValue.serverTimestamp() });
     [0, 1, 2].map(k => out.rounds[k]).concat(out.result).forEach(x =>
       b.set(db.doc(`categoryStats/${x.categoryId}`), { played: inc(1), correct: inc(x.correct) }, { merge: true }));
     b.set(db.doc(`categoryStats/${out.skipped.categoryId}`), { skipped: inc(1) }, { merge: true });
+    b.set(db.doc("stats/families"), { families: f.families }, { merge: true });   // everyone's subject averages, for profiles
   } else if (key === "bonus") {
     b.set(db.doc(`categoryStats/${out.result.categoryId}`), { bonusPlayed: inc(1), bonusCorrect: inc(out.result.correct) }, { merge: true });
   }
   await b.commit().catch(e => console.error("tally update failed", hand, uid, e));
   const res = { result: out.result };
-  if (out.final) res.final = { score: out.final.score, best: out.final.best, aware: out.final.aware };
+  if (out.final) res.final = { score: out.final.score, best: out.final.best, aware: out.final.aware, time: out.final.time };
   return res;
 });
 
@@ -163,6 +169,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
 const setName = (async ({ name }, uid) => {
   const n = G.cleanName(name);
   if (!n) fail("invalid-argument", "Names are 2–20 letters or numbers.");
+  if (!allowedName(n)) fail("invalid-argument", "That name isn't allowed. Try another.");
   const pref = db.doc(`players/${uid}`);
   const groupIds = await db.runTransaction(async tx => {
     const p = await tx.get(pref);
@@ -190,6 +197,7 @@ const getMe = (async (_, uid) => {
 const createGroup = (async ({ name }, uid) => {
   const n = G.cleanGroupName(name);
   if (!n) fail("invalid-argument", "Group names are 2–30 characters.");
+  if (!allowedName(n)) fail("invalid-argument", "That group name isn't allowed. Try another.");
   const pref = db.doc(`players/${uid}`);
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = G.groupCode();
@@ -285,7 +293,7 @@ const groupDay = (async ({ groupId, hand }, uid) => {
   const rows = members.map(m => {
     const p = byUid[m.uid];
     const row = { uid: m.uid, name: m.name, status: p ? p.status : null };
-    if (p && p.status === "done") Object.assign(row, { score: p.score, best: p.best, aware: p.aware });
+    if (p && p.status === "done") Object.assign(row, { score: p.score, best: p.best, aware: p.aware, time: p.time ?? null });
     if (canSee && p && p.status === "done") Object.assign(row, { ranking: p.ranking, skipped: p.skipped });
     return row;
   });
@@ -317,7 +325,7 @@ const groupMonth = (async ({ groupId, month }, uid) => {
     members: members.map((m, i) => {
       const d = docs[i].exists ? docs[i].data() : {};
       const s = month === "all" ? d.stats || {} : d;
-      return { uid: m.uid, name: m.name, played: s.played || 0, total: s.totalScore || 0, best: (month === "all" ? s.bestScore : s.best) || 0, families: fams(s.families) };
+      return { uid: m.uid, name: m.name, played: s.played || 0, total: s.totalScore || 0, time: s.timeTotal || 0, best: (month === "all" ? s.bestScore : s.best) || 0, families: fams(s.families) };
     }),
   };
 });

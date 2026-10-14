@@ -53,11 +53,17 @@ test("a full hand: ranking, four rounds, scoring, stats, bonus", async () => {
     assert.equal(r.result.correct, want[k]);
     assert.equal(r.result.review.fact, "Fact " + d.slot);
     if (k < 3) assert.equal(r.final, undefined);
-    else assert.deepEqual(r.final, { score: 6 + 6 + 15 + 8, best: 2 + 6 + 15 + 24, aware: Math.round(35 / 47 * 100) });
+    else assert.deepEqual(r.final, { score: 6 + 6 + 15 + 8, best: 2 + 6 + 15 + 24, aware: Math.round(35 / 47 * 100), time: 68000 });
   }
   await code(h.startRound({ hand: 1 }, "u1"), "failed-precondition");
   const play = db.store.get("players/u1/plays/1");
   assert.equal(play.status, "done");
+  assert.equal(play.time, 4 * 17000, "server time: 20s after the deal, minus the 3s countdown, per round");
+  assert.equal(db.store.get("leaderboards/1/entries/u1").time, 68000);
+  const gf = db.store.get("stats/families").families;
+  assert.equal(gf["Geography"].dealt, 1);
+  assert.equal(Object.values(gf).reduce((t, f) => t + (f.skipped || 0), 0), 1);
+  assert.equal(Object.values(gf).reduce((t, f) => t + (f.rounds || 0), 0), 4);
   assert.equal(play.score, 35);
   assert.equal(play.current, undefined);
   const pl = db.store.get("players/u1");
@@ -219,4 +225,18 @@ test("group pages: day table, picks only after you've played, month and all-time
 
   await h.deleteAccount({}, "b");
   assert.equal(db.store.get("players/b/months/2026-11"), undefined);
+});
+
+test("offensive or official-looking names are refused; ordinary ones pass", async () => {
+  const { db, h } = setup();
+  for (const bad of ["fuck", "f u c k", "B1tch", "Bell End", "Admin", "Strong Suit", "H1tler"])
+    await code(h.setName({ name: bad }, "u1"), "invalid-argument");
+  await code(h.createGroup({ name: "Wankers United" }, "u1"), "invalid-argument");
+  for (const ok of ["Scunthorpe", "Dickens", "Cockburn", "Arsenal fan", "Penistone", "Zoë"]) {
+    const r = await h.setName({ name: ok }, "u1");
+    assert.equal(r.name, ok);
+  }
+  assert.equal(db.store.get("players/u1").name, "Zoë");
+  const g = await h.createGroup({ name: "Sussex Quizzers" }, "u1");
+  assert.ok(g.groupId);
 });

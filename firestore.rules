@@ -8,6 +8,9 @@ service cloud.firestore {
 
     match /config/{doc} { allow read: if true; }
 
+    // Everyone's totals per subject (no names), shown beside your own on your profile.
+    match /stats/{doc} { allow read: if signedIn(); }
+
     // Category labels only; prompts and answers come from the server one round at a time.
     match /hands/{hand} { allow get: if signedIn() && resource.data.opensAt <= request.time; }
 

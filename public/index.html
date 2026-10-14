@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
 <title>Strong Suit · The daily quiz that plays to your strengths</title>
 <script>
@@ -292,6 +296,10 @@ body.tut .wrap{padding-bottom:230px}
 .barline{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
 .barline i{display:block;height:100%;background:var(--good);border-radius:99px}
 .barline.skip i{background:var(--amber)}
+.bars{display:flex;flex-direction:column;gap:4px}
+.barline.all{height:4px}
+.barline.all i{background:var(--muted);opacity:.7}
+.fam-row b small{display:block;font-size:11px;font-weight:600;color:var(--muted)}
 .fam-row b{text-align:right;font-variant-numeric:tabular-nums}
 .fam-row .fn small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:1px}
 .helpbtn{position:absolute;top:0;right:0;z-index:6}
@@ -481,8 +489,8 @@ details.subj .list{padding-bottom:12px}
     <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="namebar"><div><h2 id="pName"></h2><p class="small muted" id="pAccount"></p></div><button class="btn ghost small" id="nameBtn" style="flex:none">Change name</button></div>
     <div class="stats" id="pStats"></div>
-    <div class="card"><div><b>Your strongest subjects</b><p class="small muted">The share of pairs you got right when you played each subject.</p></div><div class="list" id="pFams"></div></div>
-    <div class="card"><div><b>What you skip</b><p class="small muted">How often you skipped each subject when it was in your hand.</p></div><div class="list" id="pSkips"></div></div>
+    <div class="card"><div><b>Your strongest subjects</b><p class="small muted">The share of pairs you got right when you played each subject. The grey bar is everyone's average.</p></div><div class="list" id="pFams"></div></div>
+    <div class="card"><div><b>What you skip</b><p class="small muted">How often you skipped each subject when it was in your hand. The grey bar is everyone's average.</p></div><div class="list" id="pSkips"></div></div>
     <div class="lockcard"><div><b>More with Plus</b><p class="small muted">Trends over time, category deep dives and groups for more than 10 people.</p></div><span class="pill">Coming soon</span></div>
     <div class="card" id="signinBox">
       <b>Create an account</b>
