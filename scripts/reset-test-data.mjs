@@ -11,7 +11,7 @@ if (!DRY && process.env.CONFIRM !== "RESET") {
 }
 initializeApp({ projectId: "strong-suit" });
 const db = getFirestore();
-const CLEAR = ["players", "playSecrets", "leaderboards", "groups", "groupCodes", "categoryStats", "stats"];
+const CLEAR = ["players", "playSecrets", "leaderboards", "groups", "groupCodes", "categoryStats", "stats", "roundStats"];
 
 const summary = [];
 for (const name of CLEAR) {
