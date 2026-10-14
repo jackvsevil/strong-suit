@@ -985,7 +985,12 @@ async function signInEmail() {
   const email = $("emailIn").value.trim();
   if (!/^\S+@\S+\.\S+$/.test(email)) return toast("Enter your email address.");
   busy(true);
-  try { await api.sendEmailLink(email); toast("Check your email for a sign-in link.", 4000); $("emailIn").value = ""; }
+  try {
+    await api.sendEmailLink(email); $("emailIn").value = "";
+    // demo mode never sends an email: it pretends the link was clicked, so say so rather than promise an email
+    if (api.demo) { toast("Demo mode: no email is sent. You're signed in as " + email + " to try it out.", 5000); renderProfile(); }
+    else toast("Check your email for a sign-in link.", 4000);
+  }
   catch (e) { toast(e.message, 4000); } finally { busy(false); }
 }
 async function signOut() {
