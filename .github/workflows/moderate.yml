@@ -1,0 +1,45 @@
+# Clean up names and scores. Start with "find" to get a player's ID or check a group code.
+# Results show on the run page (and in the job summary).
+name: Moderate
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [find, rename-player, rename-group, remove-score]
+        default: find
+      target:
+        description: "find: a nickname, group name or code · rename-player / remove-score: player ID · rename-group: group code"
+        required: true
+      value:
+        description: "rename: the new name (blank gives a neutral one) · remove-score: the hand number"
+        default: ""
+      dry_run:
+        description: "Just show what would change"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write   # keyless sign-in to Google Cloud
+jobs:
+  moderate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v1   # until launch, the scripts live on the v1 branch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix scripts
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/310245852159/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-deploy@strong-suit.iam.gserviceaccount.com
+      - run: node scripts/moderate.mjs
+        env:
+          ACTION: ${{ inputs.action }}
+          TARGET: ${{ inputs.target }}
+          VALUE: ${{ inputs.value }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
