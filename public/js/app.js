@@ -64,6 +64,44 @@ function untilMidnight() {
   return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m";
 }
 
+/* ---------- themed days: card backs, the middle card's symbol and (when artwork exists) the logo ---------- */
+// Keyed by the player's local date: "MM-DD" every year, or "YYYY-MM-DD" for dates that move.
+// logo: true looks for brand/themes/<id>-light.png and -dark.png, and keeps the normal logo if they're missing.
+const THEMES = {
+  "10-31": { id: "halloween", sym: "🎃", logo: true },
+  "11-01": { id: "movember", sym: "🥸" },
+  "11-05": { id: "bonfire", sym: "🎆" },
+  "2026-11-08": { id: "diwali", sym: "🪔" },
+  "11-30": { id: "standrews", sym: "🦄" },
+  "12-25": { id: "christmas", sym: "🎄" },
+  "12-31": { id: "nye", sym: "🥂" },
+};
+function themeFor(d) {
+  const forced = new URLSearchParams(location.search).get("theme");   // ?theme=halloween previews a theme
+  if (forced) return Object.values(THEMES).find(t => t.id === forced) || null;
+  const iso = ymd(d);
+  return THEMES[iso] || THEMES[iso.slice(5)] || null;
+}
+let themeNow;
+function applyTheme() {
+  const t = themeFor(new Date());
+  if ((t && t.id) === (themeNow && themeNow.id)) return;
+  themeNow = t;
+  document.body.className = document.body.className.replace(/\btheme-\S+/g, "").trim();
+  if (t) document.body.classList.add("theme-" + t.id);
+  $("fanTop").dataset.sym = t ? t.sym : "♠";
+  const brand = $("homeLink"), svg = brand.querySelector("svg.wordmark");
+  brand.querySelector("img.wordmark")?.remove(); svg.removeAttribute("hidden");
+  if (t && t.logo) {
+    const img = new Image(), dark = matchMedia("(prefers-color-scheme: dark)");
+    img.className = "wordmark"; img.alt = "Strong Suit";
+    const pick = () => (img.src = "brand/themes/" + t.id + "-" + (dark.matches ? "dark" : "light") + ".png");
+    img.onload = () => { if (!img.isConnected) { brand.prepend(img); svg.setAttribute("hidden", ""); } };   // only once the artwork has loaded
+    img.onerror = () => { img.remove(); svg.removeAttribute("hidden"); };
+    dark.addEventListener("change", pick); pick();
+  }
+}
+
 /* ---------- state ---------- */
 let api;
 const S = { config: {}, me: null, n: null, hand: null, play: null };
@@ -75,6 +113,7 @@ async function refreshMe() { S.me = await api.getMe().catch(() => S.me); return 
 /* ---------- home ---------- */
 async function renderHome() {
   G = null; coach(""); document.body.classList.remove("tut");
+  applyTheme();
   const launch = S.config.launchDate;
   const today = ymd(new Date());
   S.n = launch ? handFor(launch, today) : null;

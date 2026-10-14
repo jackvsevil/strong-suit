@@ -91,11 +91,22 @@ p{margin:0}
 
 /* Card back (hero) */
 .fan{position:relative;height:190px;margin:8px auto 28px;width:100%;max-width:340px}
+.fan{--cb1:var(--back);--cb2:var(--back-2);--cbsym:var(--on-back)}
 .fan .cb{position:absolute;left:50%;bottom:0;width:104px;height:150px;margin-left:-52px;border-radius:12px;border:5px solid var(--card);
-  background:repeating-linear-gradient(45deg,var(--back) 0 7px,var(--back-2) 7px 9px),var(--back);box-shadow:var(--shadow);transform-origin:50% 120%}
+  background:repeating-linear-gradient(45deg,var(--cb1) 0 7px,var(--cb2) 7px 9px),var(--cb1);box-shadow:var(--shadow);transform-origin:50% 120%}
+/* themed days: card-back colours (the middle card's symbol comes from data-sym) */
+body.theme-halloween .fan{--cb1:#1C1A1F;--cb2:#E8731A}
+body.theme-movember .fan{--cb1:#5B3A24;--cb2:#C9A27E}
+body.theme-bonfire .fan{--cb1:#24163F;--cb2:#F08A24}
+body.theme-diwali .fan{--cb1:#9E1458;--cb2:#F2B01E}
+body.theme-standrews .fan{--cb1:#005EB8;--cb2:#FFFFFF}
+body.theme-christmas .fan{--cb1:#B3202A;--cb2:#1F6B3A}
+body.theme-nye .fan{--cb1:#14213D;--cb2:#D4AF37}
+body[class*="theme-"] .fan .cb{border-color:#F4F1EA}   /* themed backs get a cream card edge, so dark ones still stand out in dark mode */
+.brand img.wordmark{height:32px;width:auto;display:block}
 .fan .cb:nth-child(1){transform:rotate(-24deg);z-index:1} .fan .cb:nth-child(2){transform:rotate(-12deg);z-index:2} .fan .cb:nth-child(3){transform:rotate(0);z-index:5}
 .fan .cb:nth-child(4){transform:rotate(12deg);z-index:4} .fan .cb:nth-child(5){transform:rotate(24deg);z-index:3}
-.fan .cb:nth-child(3)::after{content:"♠";position:absolute;inset:0;display:grid;place-items:center;font:600 46px var(--display);color:var(--on-back);opacity:.95}
+.fan .cb:nth-child(3)::after{content:attr(data-sym);position:absolute;inset:0;display:grid;place-items:center;font:600 46px var(--display);color:var(--cbsym);opacity:.95}
 .hero{position:relative;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
 .hero .date{font-weight:600;color:var(--muted);font-size:15px}
 
@@ -308,7 +319,7 @@ body.tut .wrap{padding-bottom:230px}
 .linkbtn{background:none;border:0;color:var(--bad);font-weight:600;cursor:pointer;padding:8px 0;text-align:left}
 .loading{min-height:60vh;display:grid;place-items:center;text-align:center}
 body.inround .demo{display:none}
-@media (max-width:400px){.brand .wordmark{height:26px}.nav{gap:4px}.nav .iconbtn{width:36px;height:36px}.nav .iconbtn svg{width:18px;height:18px}}
+@media (max-width:400px){.brand .wordmark,.brand img.wordmark{height:26px}.nav{gap:4px}.nav .iconbtn{width:36px;height:36px}.nav .iconbtn svg{width:18px;height:18px}}
 body.busy{cursor:progress}
 body.busy .bar .btn,body.busy .gcard .btn,body.busy .field .btn{pointer-events:none;opacity:.6}
 .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
@@ -396,7 +407,7 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
   <section class="screen stack" id="home" hidden>
     <div class="hero">
       <button class="iconbtn helpbtn" id="helpBtn" aria-label="How to play">?</button>
-      <div class="fan" aria-hidden="true"><div class="cb"></div><div class="cb"></div><div class="cb"></div><div class="cb"></div><div class="cb"></div></div>
+      <div class="fan" aria-hidden="true"><div class="cb"></div><div class="cb"></div><div class="cb" id="fanTop" data-sym="♠"></div><div class="cb"></div><div class="cb"></div></div>
       <h1 id="homeTitle">Hand #1</h1>
       <p class="date" id="homeDate"></p>
       <p class="muted" id="homeSub"></p>
