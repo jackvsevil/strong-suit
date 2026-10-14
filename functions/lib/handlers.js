@@ -26,7 +26,7 @@ const startHand = (async ({ hand, ranking }, uid) => {
   needHand(hand);
   if (!G.checkRanking(ranking)) fail("invalid-argument", "Rank all five categories.");
   const r = refs(uid, hand);
-  return db.runTransaction(async tx => {
+  const out = await db.runTransaction(async tx => {
     const [h, play, player] = await Promise.all([tx.get(r.hand), tx.get(r.play), tx.get(r.player)]);
     if (!h.exists) fail("not-found", "That hand doesn't exist.");
     if (h.get("opensAt").toMillis() > now()) fail("failed-precondition", "That hand isn't open yet.");
@@ -40,8 +40,13 @@ const startHand = (async ({ hand, ranking }, uid) => {
       hand, date: h.get("date") || null, ranking, order, skipped, categories: h.get("categories"),
       startedAt: FieldValue.serverTimestamp(), rounds: {}, status: "playing",
     });
-    return { order, skipped };
+    return { order, skipped, fresh: true };
   });
+  if (out.fresh) {   // for the admin page: how many start a hand, against how many finish it
+    await db.doc(`roundStats/${hand}`).set({ started: FieldValue.increment(1) }, { merge: true }).catch(e => console.error("roundStats", e));
+    delete out.fresh;
+  }
+  return out;
 });
 
 /* ---------- 2. Deal a round: prompts and shuffled answers, never the key ---------- */
@@ -142,7 +147,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
     }
     tx.update(r.play, upd);
     tx.delete(r.secret);
-    return { result, final, rounds: p.rounds, skipped: p.categories[p.skipped] };
+    return { result, final, rounds: p.rounds, skipped: p.categories[p.skipped], skippedSlot: p.skipped, strongest: p.ranking[0] };
   });
 
   // Leaderboards and category stats sit outside the transaction: they're tallies, not the record.
@@ -156,8 +161,19 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
       b.set(db.doc(`categoryStats/${x.categoryId}`), { played: inc(1), correct: inc(x.correct) }, { merge: true }));
     b.set(db.doc(`categoryStats/${out.skipped.categoryId}`), { skipped: inc(1) }, { merge: true });
     b.set(db.doc("stats/families"), { families: f.families }, { merge: true });   // everyone's subject averages, for profiles
+    // per round and per pair, for the admin page (server-only)
+    const rounds = {};
+    const rs = slot => (rounds[slot] ||= {});
+    [0, 1, 2].map(k => out.rounds[k]).concat(out.result).forEach(x => Object.assign(rs(x.slot), {
+      played: inc(1), correct: inc(x.correct), time: inc(x.serverMs ?? 0), [`asX${x.mult}`]: inc(1),
+      pairs: Object.fromEntries(x.marks.map((m, i) => [i, inc(m ? 1 : 0)])),
+    }));
+    rs(out.skippedSlot).skipped = inc(1);
+    rs(out.strongest).strongest = inc(1);
+    b.set(db.doc(`roundStats/${hand}`), { finished: inc(1), totalScore: inc(f.score), awareTotal: inc(f.aware), rounds }, { merge: true });
   } else if (key === "bonus") {
     b.set(db.doc(`categoryStats/${out.result.categoryId}`), { bonusPlayed: inc(1), bonusCorrect: inc(out.result.correct) }, { merge: true });
+    b.set(db.doc(`roundStats/${hand}`), { bonusPlayed: inc(1), rounds: { [out.result.slot]: { bonusPlayed: inc(1), bonusCorrect: inc(out.result.correct) } } }, { merge: true });
   }
   await b.commit().catch(e => console.error("tally update failed", hand, uid, e));
   const res = { result: out.result };
@@ -330,6 +346,53 @@ const groupMonth = (async ({ groupId, month }, uid) => {
   };
 });
 
+/* ---------- Admin page: totals only, plus per-round and per-pair results (the caller is checked in index.js) ---------- */
+const adminStats = async () => {
+  const DAY = 86400000, today = Math.floor(now() / DAY) * DAY;
+  const count = q => q.count().get().then(r => r.data().count);
+  const [cfg, hands, keys, rstats, boards, fams, players, groups, waitlist, newByDay] = await Promise.all([
+    db.doc("config/app").get(),
+    db.collection("hands").get(),
+    db.collection("handKeys").get(),
+    db.collection("roundStats").get(),
+    db.collection("leaderboards").get(),
+    db.doc("stats/families").get(),
+    count(db.collection("players")),
+    count(db.collection("groups")),
+    count(db.collection("waitlist")),
+    Promise.all(Array.from({ length: 30 }, (_, i) => {   // new players per UTC day, last 30 days
+      const from = today - (29 - i) * DAY;
+      return count(db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(from)).where("createdAt", "<", Timestamp.fromMillis(from + DAY)))
+        .then(n => ({ date: new Date(from).toISOString().slice(0, 10), n }));
+    })),
+  ]);
+  const byId = snap => Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
+  const K = byId(keys), R = byId(rstats), L = byId(boards);
+  const out = hands.docs.map(d => {
+    const h = d.data(), n = Number(d.id), rs = R[d.id] || {}, lb = L[d.id] || {}, open = h.opensAt.toMillis() <= now();
+    const k = (K[d.id] && K[d.id].rounds) || [];
+    return {
+      hand: n, date: h.date, open,
+      started: rs.started || 0, finished: rs.finished || lb.players || 0, bonusPlayed: rs.bonusPlayed || 0,
+      totalScore: rs.totalScore ?? lb.totalScore ?? 0, awareTotal: rs.awareTotal || 0, tally: lb.tally || {},
+      rounds: h.categories.map(c => {
+        const x = (rs.rounds || {})[c.slot] || {};
+        return {
+          slot: c.slot, label: c.label, family: c.family, categoryId: c.categoryId,
+          played: x.played || 0, correct: x.correct || 0, time: x.time || 0, skipped: x.skipped || 0, strongest: x.strongest || 0,
+          bonusPlayed: x.bonusPlayed || 0, bonusCorrect: x.bonusCorrect || 0,
+          pairs: open && k[c.slot] ? k[c.slot].prompts.map((pr, i) => ({ prompt: pr, answer: k[c.slot].answers[i], correct: (x.pairs || {})[i] || 0 })) : [],
+        };
+      }),
+    };
+  }).sort((a, b) => a.hand - b.hand);
+  return {
+    launchDate: cfg.exists ? cfg.get("launchDate") : null, at: now(),
+    totals: { players, groups, waitlist }, newPlayers: newByDay,
+    families: (fams.exists && fams.get("families")) || {}, hands: out,
+  };
+};
+
 /* ---------- Delete everything about a player ---------- */
 const deleteAccount = (async (_, uid) => {
   const pref = db.doc(`players/${uid}`);
@@ -356,5 +419,5 @@ const joinWaitlist = (async ({ email }, uid) => {
   return { ok: true };
 });
 
-  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, groupDay, groupMonth, deleteAccount, joinWaitlist };
+  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, groupDay, groupMonth, adminStats, deleteAccount, joinWaitlist };
 }

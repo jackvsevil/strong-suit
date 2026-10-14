@@ -24,5 +24,12 @@ export const joinGroup = call(h.joinGroup);
 export const leaveGroup = call(h.leaveGroup);
 export const groupDay = call(h.groupDay);
 export const groupMonth = call(h.groupMonth);
+// Admin page: only Google-verified addresses listed in ADMIN_EMAILS (set from a GitHub secret at deploy; empty means nobody).
+const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
+export const adminStats = onCall({ cors: true, memory: "512MiB", timeoutSeconds: 60 }, async req => {
+  const t = req.auth && req.auth.token;
+  if (!t || !t.email || !t.email_verified || !ADMINS.includes(String(t.email).toLowerCase())) throw new HttpsError("permission-denied", "This page is private.");
+  return h.adminStats();
+});
 export const deleteAccount = call(h.deleteAccount);
 export const joinWaitlist = call(h.joinWaitlist);

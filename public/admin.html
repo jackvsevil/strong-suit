@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin · Strong Suit</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+:root{
+  --table:#E6EBF3; --card:#FFFFFF; --ink:#15213B; --muted:#5A6580; --line:#CDD5E3;
+  --back:#1E3B70; --back-2:#2C4F8E; --on-back:#FFFFFF; --soft:#B9C7E2;
+  --amber:#A86A10; --good:#23764A; --bad:#B23A1F;
+  --display:"Gabarito","Figtree",system-ui,sans-serif; --body:"Figtree",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
+  --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424; --soft:#34497A;
+  --amber:#F2B544; --good:#62D394; --bad:#FF8C6B; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --table:#0C1424; --card:#16213A; --ink:#E8EDF7; --muted:#9BA7C0; --line:#2A3858;
+  --back:#8DAEF0; --back-2:#6F95E3; --on-back:#0C1424; --soft:#34497A;
+  --amber:#F2B544; --good:#62D394; --bad:#FF8C6B; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--table);color:var(--ink);font:15px/1.45 var(--body)}
+button,select{font:inherit;color:inherit}
+.wrap{max-width:1100px;margin:0 auto;padding:16px 16px 60px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+h1{font:600 26px/1.1 var(--display);margin:0}
+h2{font:600 18px/1.2 var(--display);margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.btn{border:0;border-radius:10px;background:var(--back);color:var(--on-back);font-weight:700;padding:10px 16px;cursor:pointer}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.tiles{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.tile b{display:block;font:600 28px/1.1 var(--display)}
+.tile span{font-size:12px;color:var(--muted);font-weight:600}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{fill:var(--muted);font:11px var(--body)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);font-weight:600}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);padding:6px 8px 6px 0;white-space:nowrap}
+td{border-bottom:1px solid var(--line);padding:7px 8px 7px 0;vertical-align:top}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.meter{display:inline-block;width:60px;height:6px;border-radius:9px;background:var(--line);vertical-align:middle;margin-left:6px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--back-2)}
+.meter.amber i{background:var(--amber)}
+.gate{max-width:420px;margin:15vh auto;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+.low{color:var(--bad);font-weight:600}
+select{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 8px}
+.pairs td:first-child{width:45%}
+.section{margin-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="gate" id="gate">
+    <h1>Strong Suit admin</h1>
+    <p class="muted" id="gateText">Checking who you are…</p>
+    <button class="btn" id="signIn" hidden>Sign in with Google</button>
+    <a class="small" href="/">Back to the game</a>
+  </div>
+
+  <main id="main" hidden>
+    <header>
+      <div><h1>Strong Suit admin</h1><p class="muted small" id="updated"></p></div>
+      <div><button class="btn ghost" id="refresh">Refresh</button></div>
+    </header>
+    <div class="tiles" id="tiles"></div>
+    <div class="grid">
+      <div class="card"><div><h2>Players per hand</h2><p class="muted small">Started a hand, and finished all four rounds.</p></div>
+        <div class="legend"><span><i style="background:var(--soft)"></i>Started</span><span><i style="background:var(--back-2)"></i>Finished</span></div><div id="chPlayers"></div></div>
+      <div class="card"><div><h2>New players per day</h2><p class="muted small">Profiles created (guests included), last 30 days, UTC.</p></div><div id="chNew"></div></div>
+      <div class="card"><div><h2>Average score per hand</h2><p class="muted small">Out of 60, finished hands only.</p></div><div id="chScore"></div></div>
+      <div class="card"><div><h2>Subjects</h2><p class="muted small">All hands so far: share of pairs right, and how often skipped when dealt.</p></div><div class="tablewrap" id="tbFams"></div></div>
+    </div>
+    <div class="grid section">
+      <div class="card"><div><h2>Hardest rounds</h2><p class="muted small">Lowest average pairs right (out of 6) when played as one of the four rounds.</p></div><div class="tablewrap" id="tbHard"></div></div>
+      <div class="card"><div><h2>Most skipped rounds</h2><p class="muted small">Share of finished players who skipped it, and who ranked it their strongest.</p></div><div class="tablewrap" id="tbSkip"></div></div>
+    </div>
+    <div class="card section"><div><h2>Hardest pairs</h2><p class="muted small">Individual questions with the lowest share right. Worth checking for mistakes or ambiguity.</p></div><div class="tablewrap" id="tbPairs"></div></div>
+    <div class="card section">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2>One hand in detail</h2><select id="handPick" aria-label="Hand"></select></div>
+      <div id="handDetail"></div>
+    </div>
+  </main>
+</div>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

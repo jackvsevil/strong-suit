@@ -240,3 +240,29 @@ test("offensive or official-looking names are refused; ordinary ones pass", asyn
   const g = await h.createGroup({ name: "Sussex Quizzers" }, "u1");
   assert.ok(g.groupId);
 });
+
+test("admin stats: per-hand starts and finishes, per-round skips and per-pair results", async () => {
+  const { db, h } = setup();
+  db.store.set("config/app", { launchDate: "2026-11-01" });
+  await playHand(h, "a", [0, 1, 2, 3, 4], [6, 6, 6, 6], 2);   // skips slot 4, bonus 2/6
+  await playHand(h, "b", [4, 3, 2, 1, 0], [1, 2, 3, 4]);      // skips slot 0
+  await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, "c");   // starts, never finishes
+  const s = await h.adminStats();
+  assert.equal(s.totals.players, 3);
+  assert.equal(s.newPlayers.length, 30);
+  assert.equal(s.newPlayers.at(-1).n, 3, "all three created today");
+  const h1 = s.hands.find(x => x.hand === 1);
+  assert.equal(h1.started, 3);
+  assert.equal(h1.finished, 2);
+  assert.equal(h1.bonusPlayed, 1);
+  assert.equal(h1.rounds[4].skipped, 1);
+  assert.equal(h1.rounds[0].skipped, 1);
+  assert.equal(h1.rounds[0].strongest, 1);
+  assert.equal(h1.rounds[4].played, 1);                  // only b played slot 4
+  assert.equal(h1.rounds[4].bonusPlayed, 1);
+  assert.equal(h1.rounds[4].bonusCorrect, 2);
+  assert.equal(h1.rounds[1].pairs.length, 6);
+  assert.equal(h1.rounds[1].pairs[0].answer, "A1.0");
+  assert.equal(h1.rounds[1].pairs.reduce((t, p) => t + p.correct, 0), h1.rounds[1].correct);
+  assert.equal(s.hands.find(x => x.hand === 2).rounds.length, 0, "hand 2 has no categories in the fixture");
+});

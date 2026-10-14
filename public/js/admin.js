@@ -1,0 +1,167 @@
+// Strong Suit admin page. The data comes from the adminStats function, which refuses anyone not on the admin list.
+// ?demo=1 shows made-up numbers, for checking the layout without signing in.
+import { DAYS, toHand, FAMILY_EMOJI } from "./content.js";
+
+const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+const fmtPct = v => (v === null ? "–" : v + "%");
+const avg1 = (a, b) => (b ? (a / b).toFixed(1) : "–");
+const fmtDate = s => (s ? new Date(s + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "");
+const MIN_N = 5;   // below this many players a rate is flagged as a small sample
+
+let load;   // () => Promise<stats>
+let data = null;
+
+/* ---------- getting in ---------- */
+async function boot() {
+  if (new URLSearchParams(location.search).has("demo")) { load = async () => demoStats(); return refresh(); }
+  let config = null;
+  try { const r = await fetch("/__/firebase/init.json", { cache: "no-store" }); if (r.ok) config = await r.json(); } catch (_) {}
+  if (!config) return gate("Couldn't load the Firebase settings. This page only works on the live site or a preview link.");
+  const [{ initializeApp }, A, Fn] = await Promise.all([import(SDK + "firebase-app.js"), import(SDK + "firebase-auth.js"), import(SDK + "firebase-functions.js")]);
+  const app = initializeApp(config);
+  const auth = A.getAuth(app);
+  const call = Fn.httpsCallable(Fn.getFunctions(app, "europe-west2"), "adminStats", { timeout: 60000 });
+  load = async () => (await call({})).data;
+  await auth.authStateReady();
+  $("signIn").onclick = async () => {
+    try { const p = new A.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" }); await A.signInWithPopup(auth, p); refresh(); }
+    catch (e) { if (e.code !== "auth/popup-closed-by-user") gate(e.message, true); }
+  };
+  const u = auth.currentUser;
+  if (!u || u.isAnonymous || !u.email) return gate("Sign in with the admin Google account. If you've been playing as a guest in this browser, this switches you to that account.", true);
+  refresh();
+}
+function gate(text, showSignIn) {
+  $("main").hidden = true; $("gate").hidden = false;
+  $("gateText").textContent = text; $("signIn").hidden = !showSignIn;
+}
+async function refresh() {
+  $("refresh").disabled = true;
+  try {
+    data = await load();
+    $("gate").hidden = true; $("main").hidden = false;
+    render();
+  } catch (e) {
+    const code = String(e.code || "").replace("functions/", "");
+    gate(code === "permission-denied" ? "This page is private, and that account isn't on the admin list. Try another account." : "Couldn't load the numbers: " + e.message, code === "permission-denied");
+  } finally { $("refresh").disabled = false; }
+}
+$("refresh").onclick = refresh;
+
+/* ---------- charts: plain SVG, one hue per meaning ---------- */
+function niceMax(v) { if (v <= 5) return 5; const p = 10 ** Math.floor(Math.log10(v)), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+/** bars: [{ label, title, back?, value }] — back is an optional wider, paler bar behind (e.g. started vs finished). */
+function barChart(el, bars, { max, fmt = v => v } = {}) {
+  if (!bars.length) { el.innerHTML = '<p class="muted small">Nothing yet.</p>'; return; }
+  const W = 600, H = 190, L = 34, B = 22, T = 8, iw = W - L - 4, ih = H - B - T;
+  const top = niceMax(max ?? Math.max(1, ...bars.map(b => Math.max(b.value, b.back || 0))));
+  const step = iw / bars.length, bw = Math.max(2, Math.min(28, step * 0.7)), every = Math.ceil(bars.length / 12);
+  const y = v => T + ih - (v / top) * ih;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  [0, 0.5, 1].forEach(f => { const v = top * f, yy = y(v); s += `<line x1="${L}" x2="${W - 4}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(Math.round(v * 10) / 10)}</text>`; });
+  bars.forEach((b, i) => {
+    const cx = L + step * i + step / 2;
+    s += `<g><title>${esc(b.title)}</title><rect x="${cx - step / 2}" y="${T}" width="${step}" height="${ih}" fill="transparent"/>`;
+    if (b.back) s += `<rect x="${cx - bw / 2 - 2}" y="${y(b.back)}" width="${bw + 4}" height="${Math.max(0, T + ih - y(b.back))}" rx="3" fill="var(--soft)"/>`;
+    if (b.value > 0) s += `<rect x="${cx - bw / 2}" y="${y(b.value)}" width="${bw}" height="${T + ih - y(b.value)}" rx="3" fill="var(--back-2)"/>`;
+    s += "</g>";
+    if (i % every === 0) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(b.label)}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+const table = (head, rows) => rows.length
+  ? '<table><thead><tr>' + head.map(h => `<th${h.n ? ' class="n"' : ""}>${h.t}</th>`).join("") + "</tr></thead><tbody>" +
+    rows.map(r => "<tr>" + r.map((c, i) => `<td${head[i].n ? ' class="n"' : ""}>${c}</td>`).join("") + "</tr>").join("") + "</tbody></table>"
+  : '<p class="muted small">Nothing yet.</p>';
+const meter = (v, cls = "") => (v === null ? "" : `<span class="meter ${cls}"><i style="width:${v}%"></i></span>`);
+const small = n => (n < MIN_N ? ` <span class="low" title="Small sample">(n=${n})</span>` : ` <span class="muted">(n=${n})</span>`);
+const roundName = r => (FAMILY_EMOJI[r.family] || "") + " " + esc(r.label);
+
+/* ---------- the page ---------- */
+function render() {
+  const d = data, open = d.hands.filter(h => h.open);
+  const today = open.at(-1);
+  $("updated").textContent = "Updated " + new Date(d.at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }) + (d.launchDate ? " · launch " + fmtDate(d.launchDate) : "");
+  $("tiles").innerHTML = [
+    ["Players (all time)", d.totals.players.toLocaleString("en-GB")],
+    ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
+    ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
+    ["Groups", d.totals.groups],
+    ["Waitlist", d.totals.waitlist],
+  ].map(([l, v]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
+
+  barChart($("chPlayers"), open.map(h => ({ label: "#" + h.hand, value: h.finished, back: h.started,
+    title: `Hand #${h.hand} (${fmtDate(h.date)}): ${h.started} started, ${h.finished} finished, ${h.bonusPlayed} played the bonus` })));
+  barChart($("chNew"), d.newPlayers.map(x => ({ label: fmtDate(x.date), value: x.n, title: `${fmtDate(x.date)}: ${x.n} new` })));
+  barChart($("chScore"), open.filter(h => h.finished).map(h => ({ label: "#" + h.hand, value: h.totalScore / h.finished,
+    title: `Hand #${h.hand}: average ${(h.totalScore / h.finished).toFixed(1)} from ${h.finished} players` + (h.awareTotal ? `, self-awareness ${Math.round(h.awareTotal / h.finished)}%` : "") })), { max: 60 });
+
+  const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct(x.correct || 0, (x.rounds || 0) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
+    .sort((a, b) => (a.right ?? 101) - (b.right ?? 101));
+  $("tbFams").innerHTML = table([{ t: "Subject" }, { t: "Right", n: 1 }, { t: "Skipped", n: 1 }],
+    fams.map(x => [(FAMILY_EMOJI[x.f] || "") + " " + esc(x.f) + small(x.dealt), fmtPct(x.right) + meter(x.right), fmtPct(x.skip) + meter(x.skip, "amber")]));
+
+  const rounds = open.flatMap(h => h.rounds.map(r => ({ ...r, hand: h.hand, finished: h.finished })));
+  const hard = rounds.filter(r => r.played).sort((a, b) => a.correct / a.played - b.correct / b.played).slice(0, 10);
+  $("tbHard").innerHTML = table([{ t: "Hand" }, { t: "Round" }, { t: "Avg /6", n: 1 }, { t: "Avg time", n: 1 }],
+    hard.map(r => ["#" + r.hand, roundName(r) + small(r.played), avg1(r.correct, r.played), Math.round(r.time / r.played / 1000) + "s"]));
+  const skipped = rounds.filter(r => r.finished).map(r => ({ ...r, rate: pct(r.skipped, r.finished), top: pct(r.strongest, r.finished) }))
+    .sort((a, b) => b.rate - a.rate || a.top - b.top).slice(0, 10);
+  $("tbSkip").innerHTML = table([{ t: "Hand" }, { t: "Round" }, { t: "Skipped", n: 1 }, { t: "Strongest", n: 1 }],
+    skipped.map(r => ["#" + r.hand, roundName(r) + small(r.finished), fmtPct(r.rate) + meter(r.rate, "amber"), fmtPct(r.top)]));
+
+  const pairs = rounds.filter(r => r.played).flatMap(r => r.pairs.map(p => ({ ...p, hand: r.hand, round: r, n: r.played, rate: pct(p.correct, r.played) })))
+    .sort((a, b) => a.rate - b.rate || b.n - a.n).slice(0, 20);
+  $("tbPairs").innerHTML = '<div class="pairs">' + table([{ t: "Pair" }, { t: "Round" }, { t: "Right", n: 1 }],
+    pairs.map(p => [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", "#" + p.hand + " " + roundName(p.round), fmtPct(p.rate) + small(p.n) + meter(p.rate)])) + "</div>";
+
+  const pick = $("handPick"), was = pick.value;
+  pick.innerHTML = open.slice().reverse().map(h => `<option value="${h.hand}">Hand #${h.hand} · ${fmtDate(h.date)}</option>`).join("");
+  if (was && open.find(h => String(h.hand) === was)) pick.value = was;
+  pick.onchange = drawHand; drawHand();
+}
+function drawHand() {
+  const h = data.hands.find(x => String(x.hand) === $("handPick").value);
+  if (!h) { $("handDetail").innerHTML = '<p class="muted small">No hands open yet.</p>'; return; }
+  let s = `<p class="muted small">${h.started} started · ${h.finished} finished · ${h.bonusPlayed} played the bonus` +
+    (h.finished ? ` · average ${(h.totalScore / h.finished).toFixed(1)}/60` : "") + "</p>";
+  h.rounds.forEach(r => {
+    s += `<div class="section"><h2 style="font-size:16px">${roundName(r)}</h2><p class="muted small">` +
+      `Played ${r.played} · avg ${avg1(r.correct, r.played)}/6` + (r.played ? ` · ${Math.round(r.time / r.played / 1000)}s` : "") +
+      ` · skipped by ${fmtPct(pct(r.skipped, h.finished))} · strongest for ${fmtPct(pct(r.strongest, h.finished))}` +
+      (r.bonusPlayed ? ` · bonus ${avg1(r.bonusCorrect, r.bonusPlayed)}/6 (${r.bonusPlayed})` : "") + "</p>";
+    if (r.played) s += '<div class="tablewrap pairs">' + table([{ t: "Pair" }, { t: "Right", n: 1 }],
+      r.pairs.map(p => { const v = pct(p.correct, r.played); return [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", fmtPct(v) + meter(v)]; })) + "</div>";
+    s += "</div>";
+  });
+  $("handDetail").innerHTML = s;
+}
+
+/* ---------- made-up numbers for ?demo=1 ---------- */
+function demoStats() {
+  let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const start = new Date(); start.setUTCDate(start.getUTCDate() - (DAYS.length - 1));
+  const hands = DAYS.map((cats, i) => {
+    const h = toHand(cats, i + 1), started = 40 + Math.floor(r() * 80) + i * 25, finished = Math.floor(started * (0.7 + r() * 0.25));
+    const date = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    return {
+      hand: i + 1, date, open: true, started, finished, bonusPlayed: Math.floor(finished * 0.4), totalScore: finished * (25 + r() * 15), awareTotal: finished * (70 + r() * 20), tally: {},
+      rounds: h.categories.map((c, slot) => {
+        const skipped = Math.floor(finished * r() * 0.45), played = finished - skipped, pairs = h.rounds[slot].prompts.map((p, k) => ({ prompt: p, answer: h.rounds[slot].answers[k], correct: Math.floor(played * (0.2 + r() * 0.75)) }));
+        return { ...c, played, skipped, strongest: Math.floor(finished * r() * 0.4), correct: pairs.reduce((t, p) => t + p.correct, 0), time: played * (15000 + r() * 25000), bonusPlayed: Math.floor(skipped * 0.4), bonusCorrect: Math.floor(skipped * 0.4 * 3), pairs };
+      }),
+    };
+  });
+  const families = {};
+  hands.forEach(h => h.rounds.forEach(x => { const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
+  const today = Date.now();
+  return {
+    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, waitlist: 128 }, families, hands,
+    newPlayers: Array.from({ length: 30 }, (_, i) => ({ date: new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10), n: i < 26 ? 0 : Math.floor(30 + r() * 90) })),
+  };
+}
+
+boot();

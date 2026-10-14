@@ -64,14 +64,17 @@ export function makeDb(clock = () => Date.now()) {
     const q = { filters: [], order: null, lim: Infinity };
     const run = () => {
       let docs = [...store.entries()].filter(([p]) => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/"));
-      docs = docs.filter(([, d]) => q.filters.every(([f, v]) => d[f] === v));
+      const val = x => (x instanceof Timestamp ? x.ms : x);
+      const test = { "==": (a, b) => a === b, ">=": (a, b) => a >= b, "<": (a, b) => a < b, ">": (a, b) => a > b, "<=": (a, b) => a <= b };
+      docs = docs.filter(([, d]) => q.filters.every(([f, op, v]) => d[f] !== undefined && test[op](val(d[f]), val(v))));
       if (q.order) docs.sort((a, b) => ((a[1][q.order]?.ms ?? a[1][q.order]) > (b[1][q.order]?.ms ?? b[1][q.order]) ? 1 : -1));
       return { docs: docs.slice(0, q.lim).map(([p, d]) => snap(p, d)) };
     };
     const api = {
       path, _query: true, run,
       doc: id => doc(`${path}/${id ?? "auto" + ++autoId}`),
-      where: (f, op, v) => { q.filters.push([f, v]); return api; },
+      where: (f, op, v) => { q.filters.push([f, op, v]); return api; },
+      count: () => ({ get: async () => ({ data: () => ({ count: run().docs.length }) }) }),
       orderBy: f => { q.order = f; return api; },
       limit: n => { q.lim = n; return api; },
       get: async () => run(),
