@@ -624,7 +624,7 @@ async function renderGroup(gid) {
   $("gName").innerHTML = symHtml(g.symbol) + esc(g.name);
   drawManage(g);
   $("gMeta").textContent = g.memberCount + " of " + g.cap + " members · code " + g.code;
-  $("gInvite").onclick = () => share("Join my Strong Suit group \"" + g.name + "\": " + SITE + "/?join=" + g.code + "\n(or enter code " + g.code + ")");
+  $("gInvite").onclick = () => copyInvite(g);
   $("gLeave").onclick = async () => {
     if (!(await ask({ title: "Leave " + g.name + "?", text: g.memberCount <= 1 ? "You're the last member, so the group will be deleted." : "You can rejoin later with the code.", ok: "Leave", danger: true }))) return;
     busy(true); try { await api.leaveGroup(g.id); toast("Left " + g.name); await refreshMe(); } catch (e) { toast(e.message); } finally { busy(false); renderGroups(); }
@@ -643,6 +643,13 @@ async function renderGroup(gid) {
   }
   $("gTabs").hidden = false;
   drawGroup();
+}
+
+/** Copies the invite message; if the browser won't allow it, shows the text to copy by hand. */
+async function copyInvite(g) {
+  const text = "Join my Strong Suit group \"" + g.name + "\": " + SITE + "/?join=" + g.code + "\n(or enter code " + g.code + ")";
+  try { await navigator.clipboard.writeText(text); toast("Invite copied. Paste it into your group chat.", 3000); }
+  catch (_) { await ask({ title: "Copy this invite", text: "Your browser didn't let us copy it automatically.", ok: "Done", cancel: "Close", input: { value: text, max: 300 } }); }
 }
 
 /* The creator's controls: rename, symbol, a new invite code, and removing members. */
