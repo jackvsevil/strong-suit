@@ -153,17 +153,6 @@ test("last member leaving removes the group and its code", async () => {
   assert.equal(db.store.get(`groupCodes/${g.code}`), undefined);
 });
 
-test("waitlist stores one entry per address and is removed with the account", async () => {
-  const { db, h } = setup();
-  await code(h.joinWaitlist({ email: "not an email" }, "w"), "invalid-argument");
-  await h.joinWaitlist({ email: " Jack@Example.com " }, "w");
-  await h.joinWaitlist({ email: "jack@example.com" }, "w");
-  const rows = [...db.store.entries()].filter(([k]) => k.startsWith("waitlist/"));
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0][1].email, "jack@example.com");
-  await h.deleteAccount({}, "w");
-  assert.equal([...db.store.keys()].filter(k => k.startsWith("waitlist/")).length, 0);
-});
 
 async function playHand(h, uid, ranking, want, bonus) {
   await h.startHand({ hand: 1, ranking }, uid);

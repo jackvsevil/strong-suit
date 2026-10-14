@@ -407,7 +407,7 @@ const groupMonth = (async ({ groupId, month }, uid) => {
 const adminStats = async () => {
   const DAY = 86400000, today = Math.floor(now() / DAY) * DAY;
   const count = q => q.count().get().then(r => r.data().count);
-  const [cfg, hands, keys, rstats, boards, fams, players, groups, waitlist, newByDay] = await Promise.all([
+  const [cfg, hands, keys, rstats, boards, fams, players, groups, newByDay] = await Promise.all([
     db.doc("config/app").get(),
     db.collection("hands").get(),
     db.collection("handKeys").get(),
@@ -416,7 +416,6 @@ const adminStats = async () => {
     db.doc("stats/families").get(),
     count(db.collection("players")),
     count(db.collection("groups")),
-    count(db.collection("waitlist")),
     Promise.all(Array.from({ length: 30 }, (_, i) => {   // new players per UTC day, last 30 days
       const from = today - (29 - i) * DAY;
       return count(db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(from)).where("createdAt", "<", Timestamp.fromMillis(from + DAY)))
@@ -445,7 +444,7 @@ const adminStats = async () => {
   }).sort((a, b) => a.hand - b.hand);
   return {
     launchDate: cfg.exists ? cfg.get("launchDate") : null, at: now(),
-    totals: { players, groups, waitlist }, newPlayers: newByDay,
+    totals: { players, groups }, newPlayers: newByDay,
     families: (fams.exists && fams.get("families")) || {}, hands: out,
   };
 };
@@ -458,8 +457,7 @@ const deleteAccount = (async (_, uid) => {
   const plays = await pref.collection("plays").get();
   const months = await pref.collection("months").get();
   const secrets = await db.collection("playSecrets").where("uid", "==", uid).get();
-  const waits = await db.collection("waitlist").where("uid", "==", uid).get();
-  const docs = [...plays.docs.map(d => d.ref), ...months.docs.map(d => d.ref), ...plays.docs.map(d => db.doc(`leaderboards/${d.id}/entries/${uid}`)), ...secrets.docs.map(d => d.ref), ...waits.docs.map(d => d.ref), pref];
+  const docs = [...plays.docs.map(d => d.ref), ...months.docs.map(d => d.ref), ...plays.docs.map(d => db.doc(`leaderboards/${d.id}/entries/${uid}`)), ...secrets.docs.map(d => d.ref), pref];
   for (let i = 0; i < docs.length; i += 400) {
     const b = db.batch(); docs.slice(i, i + 400).forEach(d => b.delete(d)); await b.commit();
   }
@@ -467,14 +465,5 @@ const deleteAccount = (async (_, uid) => {
   return { ok: true };
 });
 
-/* ---------- Launch waitlist: one email on launch day, nothing else ---------- */
-const joinWaitlist = (async ({ email }, uid) => {
-  const e = typeof email === "string" ? email.trim().toLowerCase() : "";
-  if (e.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail("invalid-argument", "That doesn't look like an email address.");
-  const id = createHash("sha256").update(e).digest("hex");
-  await db.doc(`waitlist/${id}`).set({ email: e, uid, joinedAt: FieldValue.serverTimestamp() }, { merge: true });
-  return { ok: true };
-});
-
-  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, adminStats, deleteAccount, joinWaitlist };
+  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, adminStats, deleteAccount };
 }

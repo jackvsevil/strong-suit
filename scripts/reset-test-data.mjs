@@ -1,5 +1,5 @@
 // Clears test play before launch: plays, scores, leaderboards, groups, profiles and stats.
-// Keeps hands, answer keys, settings and the launch waitlist.
+// Keeps hands, answer keys and settings. Also clears the old launch waitlist, which was dropped.
 // Env: CONFIRM must be "RESET"; DRY_RUN=1 counts without deleting.
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -11,7 +11,7 @@ if (!DRY && process.env.CONFIRM !== "RESET") {
 }
 initializeApp({ projectId: "strong-suit" });
 const db = getFirestore();
-const CLEAR = ["players", "playSecrets", "leaderboards", "groups", "groupCodes", "categoryStats", "stats", "roundStats"];
+const CLEAR = ["players", "playSecrets", "leaderboards", "groups", "groupCodes", "categoryStats", "stats", "roundStats", "waitlist"];
 
 const summary = [];
 for (const name of CLEAR) {
@@ -21,7 +21,7 @@ for (const name of CLEAR) {
   summary.push(`${name}: ${top}`);
 }
 const kept = [];
-for (const name of ["hands", "handKeys", "config", "waitlist"]) kept.push(`${name}: ${(await db.collection(name).count().get()).data().count}`);
+for (const name of ["hands", "handKeys", "config"]) kept.push(`${name}: ${(await db.collection(name).count().get()).data().count}`);
 
 const msg = `${DRY ? "Would delete" : "Deleted"} (top-level documents, with everything inside them): ${summary.join(", ")}. Kept: ${kept.join(", ")}.`;
 console.log(msg);

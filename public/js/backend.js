@@ -146,7 +146,6 @@ async function firebaseBackend(config) {
       return ms.docs.map(d => ({ uid: d.id, name: d.data().name }));
     },
     joinGroup: code => call("joinGroup")({ code }),
-    joinWaitlist: email => call("joinWaitlist")({ email }),
     leaveGroup: groupId => call("leaveGroup")({ groupId }),
     async deleteAccount() { await call("deleteAccount")({}); await A.signOut(auth).catch(() => {}); await A.signInAnonymously(auth); },
   };
@@ -310,7 +309,6 @@ function demoBackend() {
       if (!st.me.groupIds.includes(id)) { st.me.groupIds.push(id); st.groups[id].members.push("me"); st.groups[id].memberCount++; }
       save(); return { groupId: id, name: st.groups[id].name };
     },
-    async joinWaitlist(email) { st.waitlist = email; save(); return { ok: true }; },
     async leaveGroup(id) { st.me.groupIds = st.me.groupIds.filter(x => x !== id); delete st.groups[id]; save(); return { ok: true }; },
     async deleteAccount() { localStorage.removeItem(KEY); location.reload(); },
     _finalScore: finalScore,

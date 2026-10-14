@@ -35,4 +35,3 @@ export const adminStats = onCall({ cors: true, memory: "512MiB", timeoutSeconds:
   return h.adminStats();
 });
 export const deleteAccount = call(h.deleteAccount);
-export const joinWaitlist = call(h.joinWaitlist);

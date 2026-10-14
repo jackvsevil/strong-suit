@@ -1,5 +1,5 @@
 # One-off before launch: clears test plays, scores, groups and profiles.
-# Keeps hands, answer keys, settings and the launch waitlist.
+# Keeps hands, answer keys and settings.
 name: Reset test data
 on:
   workflow_dispatch:

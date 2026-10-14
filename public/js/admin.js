@@ -90,7 +90,6 @@ function render() {
     ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
     ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
     ["Groups", d.totals.groups],
-    ["Waitlist", d.totals.waitlist],
   ].map(([l, v]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join("");
 
   barChart($("chPlayers"), open.map(h => ({ label: "#" + h.hand, value: h.finished, back: h.started,
@@ -159,7 +158,7 @@ function demoStats() {
   hands.forEach(h => h.rounds.forEach(x => { const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
   const today = Date.now();
   return {
-    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, waitlist: 128 }, families, hands,
+    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37 }, families, hands,
     newPlayers: Array.from({ length: 30 }, (_, i) => ({ date: new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10), n: i < 26 ? 0 : Math.floor(30 + r() * 90) })),
   };
 }
