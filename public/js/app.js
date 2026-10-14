@@ -577,17 +577,41 @@ async function renderGroups() {
   show("groups");
   bar([]);
   const list = $("groupList"); list.innerHTML = '<p class="muted small">Loading…</p>';
+  symbolPicker($("newSym"), newSymbol, id => (newSymbol = id));
   const groups = await api.groups().catch(e => (toast(e.message), []));
   list.innerHTML = groups.length ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
   groups.forEach(g => {
     const d = document.createElement("button"); d.className = "row tap gopen";
-    d.innerHTML = '<div class="m">♣</div><div class="t"><small></small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div>';
+    d.innerHTML = '<div class="m">' + symHtml(g.symbol) + '</div><div class="t"><small></small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div>';
     d.querySelector(".t").prepend(g.name);
     d.querySelector("small").textContent = g.memberCount + " of " + g.cap + " members";
     d.onclick = () => renderGroup(g.id);
     list.appendChild(d);
   });
 }
+
+/* ---------- group symbols (IDs match GROUP_SYMBOLS on the server) ---------- */
+const VS15 = "\uFE0E";   // ask for the plain text glyph, not the emoji, so suits take our colours
+const SYMBOLS = {
+  spade: "♠" + VS15, heart: "♥" + VS15, diamond: "♦" + VS15, club: "♣" + VS15,
+  joker: "🃏", crown: "👑", star: "★", dice: "🎲", trophy: "🏆", target: "🎯",
+  beer: "🍺", wine: "🍷", coffee: "☕", brain: "🧠", owl: "🦉", fire: "🔥", bolt: "⚡", octopus: "🐙", fox: "🦊", bee: "🐝",
+};
+const SYMBOL_NAMES = { spade: "Spades", heart: "Hearts", diamond: "Diamonds", club: "Clubs", joker: "Joker", crown: "Crown", star: "Star", dice: "Dice", trophy: "Trophy", target: "Target",
+  beer: "Beer", wine: "Wine", coffee: "Coffee", brain: "Brain", owl: "Owl", fire: "Fire", bolt: "Lightning", octopus: "Octopus", fox: "Fox", bee: "Bee" };
+const symHtml = id => { const k = SYMBOLS[id] ? id : "club"; return '<span class="sym' + (k === "heart" || k === "diamond" ? " red" : "") + '" aria-hidden="true">' + SYMBOLS[k] + "</span>"; };
+/** Fills a .symgrid with one button per symbol; onPick(id) is called when one is chosen. */
+function symbolPicker(el, selected, onPick) {
+  el.innerHTML = "";
+  Object.keys(SYMBOLS).forEach(id => {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("role", "radio"); b.setAttribute("aria-checked", id === selected); b.setAttribute("aria-label", SYMBOL_NAMES[id]);
+    b.innerHTML = symHtml(id);
+    b.onclick = () => { el.querySelectorAll("button").forEach(x => x.setAttribute("aria-checked", x === b)); onPick(id); };
+    el.appendChild(b);
+  });
+}
+let newSymbol = "spade";
 
 /* ---------- one group: table (day, month, all time), everyone's picks, and subject stats ---------- */
 async function renderGroup(gid) {
@@ -596,7 +620,8 @@ async function renderGroup(gid) {
   ["gTabs", "gPeriods", "gStep"].forEach(id => ($(id).hidden = true));
   const g = await api.group(gid).catch(() => null);
   if (!g) { toast("Couldn't open that group."); return renderGroups(); }
-  $("gName").textContent = g.name;
+  $("gName").innerHTML = symHtml(g.symbol) + esc(g.name);
+  drawManage(g);
   $("gMeta").textContent = g.memberCount + " of " + g.cap + " members · code " + g.code;
   $("gInvite").onclick = () => share("Join my Strong Suit group \"" + g.name + "\": " + SITE + "/?join=" + g.code + "\n(or enter code " + g.code + ")");
   $("gLeave").onclick = async () => {
@@ -617,6 +642,53 @@ async function renderGroup(gid) {
   }
   $("gTabs").hidden = false;
   drawGroup();
+}
+
+/* The creator's controls: rename, symbol, a new invite code, and removing members. */
+async function drawManage(g) {
+  const mine = g.ownerUid === api.account().uid;
+  $("gManage").hidden = !mine;
+  if (!mine) return;
+  $("gRename").value = g.name;
+  $("gCode").textContent = g.code;
+  const save = async (changes, done) => {
+    busy(true);
+    try { await api.updateGroup(g.id, changes); Object.assign(g, changes); $("gName").innerHTML = symHtml(g.symbol) + esc(g.name); toast(done); }
+    catch (e) { toast(e.message); } finally { busy(false); }
+  };
+  $("gRenameBtn").onclick = () => {
+    const name = $("gRename").value.trim();
+    if (name === g.name) return;
+    save({ name }, "Renamed");
+  };
+  symbolPicker($("gSym"), g.symbol || "club", id => save({ symbol: id }, "Symbol changed"));
+  $("gNewCode").onclick = async () => {
+    if (!(await ask({ title: "Make a new invite code?", text: "The old code " + g.code + " will stop working straight away, including for anyone you've sent it to who hasn't joined yet.", ok: "New code" }))) return;
+    busy(true);
+    try { const r = await api.newGroupCode(g.id); g.code = r.code; $("gCode").textContent = r.code; $("gMeta").textContent = g.memberCount + " of " + g.cap + " members · code " + g.code; toast("New code: " + r.code, 3000); }
+    catch (e) { toast(e.message); } finally { busy(false); }
+  };
+  const list = $("gMembers");
+  list.innerHTML = '<p class="muted small">Loading…</p>';
+  const members = await api.groupMembers(g.id).catch(() => []);
+  const me = api.account().uid;
+  list.innerHTML = "";
+  members.sort((a, b) => (a.uid === me ? -1 : b.uid === me ? 1 : a.name.localeCompare(b.name))).forEach(m => {
+    const row = document.createElement("div"); row.className = "mem";
+    const n = document.createElement("span"); n.textContent = m.name + (m.uid === me ? " (you)" : "");
+    row.appendChild(n);
+    if (m.uid !== me) {
+      const b = document.createElement("button"); b.className = "linkbtn"; b.textContent = "Remove";
+      b.onclick = async () => {
+        if (!(await ask({ title: "Remove " + m.name + "?", text: "They'll leave the group straight away. They could rejoin with the invite code, so make a new code if you need to keep them out.", ok: "Remove", danger: true }))) return;
+        busy(true);
+        try { await api.removeMember(g.id, m.uid); toast(m.name + " removed"); renderGroup(g.id); }
+        catch (e) { toast(e.message); } finally { busy(false); }
+      };
+      row.appendChild(b);
+    }
+    list.appendChild(row);
+  });
 }
 
 /* Group page state: which tab, which period, and data already fetched this visit. */
@@ -797,7 +869,7 @@ async function createGroup() {
   const name = $("newGroup").value.trim();
   if (name.length < 2) return toast("Give your group a name.");
   busy(true);
-  try { const g = await api.createGroup(name); $("newGroup").value = ""; toast("Group made. Invite your friends with the code " + g.code, 4000); await refreshMe(); renderGroup(g.groupId); }
+  try { const g = await api.createGroup(name, newSymbol); $("newGroup").value = ""; newSymbol = "spade"; toast("Group made. Invite your friends with the code " + g.code, 4000); await refreshMe(); renderGroup(g.groupId); }
   catch (e) { toast(e.message); } finally { busy(false); }
 }
 async function joinGroup(code) {

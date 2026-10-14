@@ -16,6 +16,7 @@ const RESERVED = ["admin", "administrator", "moderator", "mod", "official", "sta
 
 const squash = w => w.replace(/(.)\1+/g, "$1");   // "fuuuk" → "fuk"
 const BLOCKED_WORDS = new Set([...EXTRA, ...RESERVED].map(squash));
+const blocked = w => { const q = squash(w); return BLOCKED_WORDS.has(q) || (q.endsWith("s") && BLOCKED_WORDS.has(q.slice(0, -1))); };   // plurals too
 
 function plain(s) {
   return s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -38,8 +39,8 @@ export function allowedName(name) {
   for (const v of variants) {
     const p = plain(v);
     const words = p.split(/[^a-z]+/).filter(Boolean);
-    if (words.some(w => BLOCKED_WORDS.has(squash(w)))) return false;
-    if (words.some((w, i) => i && BLOCKED_WORDS.has(squash(words[i - 1] + w)))) return false;   // "bell end"
+    if (words.some(blocked)) return false;
+    if (words.some((w, i) => i && blocked(words[i - 1] + w))) return false;   // "bell end"
     if (p.replace(/[^a-z]/g, "").includes("strongsuit")) return false;
   }
   return true;

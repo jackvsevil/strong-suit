@@ -87,3 +87,7 @@ export function cleanGroupName(name) {
   return n.length >= 2 && n.length <= 30 ? n : null;
 }
 export const FREE_GROUP_CAP = 10;
+/** Symbols a group can wear. The app maps each ID to its glyph. */
+export const GROUP_SYMBOLS = ["spade", "heart", "diamond", "club", "joker", "crown", "star", "dice", "trophy", "target",
+  "beer", "wine", "coffee", "brain", "owl", "fire", "bolt", "octopus", "fox", "bee"];
+export const cleanSymbol = s => (GROUP_SYMBOLS.includes(s) ? s : null);

@@ -210,8 +210,9 @@ const getMe = (async (_, uid) => {
 });
 
 /* ---------- Groups ---------- */
-const createGroup = (async ({ name }, uid) => {
+const createGroup = (async ({ name, symbol }, uid) => {
   const n = G.cleanGroupName(name);
+  const sym = G.cleanSymbol(symbol) || "club";
   if (!n) fail("invalid-argument", "Group names are 2–30 characters.");
   if (!allowedName(n)) fail("invalid-argument", "That group name isn't allowed. Try another.");
   const pref = db.doc(`players/${uid}`);
@@ -223,7 +224,7 @@ const createGroup = (async ({ name }, uid) => {
       if (c.exists) return false;
       const pl = p.exists ? p.data() : newPlayer(uid);
       if (!p.exists) tx.set(pref, pl);
-      tx.set(gref, { name: n, ownerUid: uid, code, memberCount: 1, cap: pl.plus ? 50 : G.FREE_GROUP_CAP, createdAt: FieldValue.serverTimestamp() });
+      tx.set(gref, { name: n, symbol: sym, ownerUid: uid, code, memberCount: 1, cap: pl.plus ? 50 : G.FREE_GROUP_CAP, createdAt: FieldValue.serverTimestamp() });
       tx.set(gref.collection("members").doc(uid), { name: pl.name, joinedAt: FieldValue.serverTimestamp() });
       tx.set(db.doc(`groupCodes/${code}`), { groupId: gref.id });
       tx.set(pref, { groupIds: FieldValue.arrayUnion(gref.id) }, { merge: true });
@@ -283,6 +284,62 @@ const leaveGroup = (async ({ groupId }, uid) => {
   if (typeof groupId !== "string" || !groupId) fail("invalid-argument", "Unknown group.");
   await leave(uid, groupId);
   return { ok: true };
+});
+
+/* ---------- Group creator's controls ---------- */
+async function ownedGroup(tx, groupId, uid) {
+  if (typeof groupId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(groupId)) fail("invalid-argument", "Unknown group.");
+  const gref = db.doc(`groups/${groupId}`);
+  const g = await tx.get(gref);
+  if (!g.exists) fail("not-found", "That group no longer exists.");
+  if (g.get("ownerUid") !== uid) fail("permission-denied", "Only the group's creator can do that.");
+  return { gref, g };
+}
+// Rename the group and/or change its symbol.
+const updateGroup = (async ({ groupId, name, symbol }, uid) => {
+  const upd = {};
+  if (name !== undefined) {
+    const n = G.cleanGroupName(name);
+    if (!n) fail("invalid-argument", "Group names are 2–30 characters.");
+    if (!allowedName(n)) fail("invalid-argument", "That group name isn't allowed. Try another.");
+    upd.name = n;
+  }
+  if (symbol !== undefined) upd.symbol = G.cleanSymbol(symbol) || fail("invalid-argument", "Pick one of the symbols.");
+  if (!Object.keys(upd).length) fail("invalid-argument", "Nothing to change.");
+  await db.runTransaction(async tx => { const { gref } = await ownedGroup(tx, groupId, uid); tx.update(gref, upd); });
+  return upd;
+});
+// Remove a member. They could rejoin with the code, so the creator can also issue a new one.
+const removeMember = (async ({ groupId, memberUid }, uid) => {
+  if (typeof memberUid !== "string" || !memberUid) fail("invalid-argument", "Unknown player.");
+  if (memberUid === uid) fail("invalid-argument", "To leave your own group, use Leave this group.");
+  await db.runTransaction(async tx => {
+    const { gref } = await ownedGroup(tx, groupId, uid);
+    const mref = gref.collection("members").doc(memberUid);
+    const m = await tx.get(mref);
+    if (!m.exists) fail("not-found", "They're not in this group.");
+    tx.delete(mref);
+    tx.update(gref, { memberCount: FieldValue.increment(-1) });
+    tx.set(db.doc(`players/${memberUid}`), { groupIds: FieldValue.arrayRemove(groupId) }, { merge: true });
+  });
+  return { ok: true };
+});
+// A fresh invite code; the old one stops working straight away.
+const newGroupCode = (async ({ groupId }, uid) => {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = G.groupCode();
+    const ok = await db.runTransaction(async tx => {
+      const { gref, g } = await ownedGroup(tx, groupId, uid);
+      const c = await tx.get(db.doc(`groupCodes/${code}`));
+      if (c.exists) return false;
+      tx.delete(db.doc(`groupCodes/${g.get("code")}`));
+      tx.set(db.doc(`groupCodes/${code}`), { groupId });
+      tx.update(gref, { code });
+      return true;
+    });
+    if (ok) return { code };
+  }
+  fail("unavailable", "Couldn't make a new code. Try again.");
 });
 
 /* ---------- Group pages: only members can look, and only the server reads other players' plays ---------- */
@@ -419,5 +476,5 @@ const joinWaitlist = (async ({ email }, uid) => {
   return { ok: true };
 });
 
-  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, groupDay, groupMonth, adminStats, deleteAccount, joinWaitlist };
+  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, adminStats, deleteAccount, joinWaitlist };
 }

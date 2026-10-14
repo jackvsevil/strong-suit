@@ -137,7 +137,14 @@ async function firebaseBackend(config) {
       const qs = await F.getDocs(F.collection(db, `players/${uid()}/plays`));
       return Object.fromEntries(qs.docs.map(d => [d.id, d.data()]));
     },
-    createGroup: name => call("createGroup")({ name }),
+    createGroup: (name, symbol) => call("createGroup")({ name, symbol }),
+    updateGroup: (groupId, changes) => call("updateGroup")({ groupId, ...changes }),
+    removeMember: (groupId, memberUid) => call("removeMember")({ groupId, memberUid }),
+    newGroupCode: groupId => call("newGroupCode")({ groupId }),
+    async groupMembers(gid) {
+      const ms = await F.getDocs(F.collection(db, `groups/${gid}/members`));
+      return ms.docs.map(d => ({ uid: d.id, name: d.data().name }));
+    },
     joinGroup: code => call("joinGroup")({ code }),
     joinWaitlist: email => call("joinWaitlist")({ email }),
     leaveGroup: groupId => call("leaveGroup")({ groupId }),
@@ -288,11 +295,15 @@ function demoBackend() {
       }));
       return fams;
     },
-    async createGroup(name) {
+    async createGroup(name, symbol) {
       const id = "g" + Date.now(); const c = code();
-      st.groups[id] = { name, code: c, memberCount: 3, cap: 10, ownerUid: "me", members: ["me", "bot1", "bot4"] };
+      st.groups[id] = { name, symbol: symbol || "club", code: c, memberCount: 3, cap: 10, ownerUid: "me", members: ["me", "bot1", "bot4"] };
       st.me.groupIds.push(id); save(); return { groupId: id, code: c };
     },
+    async updateGroup(id, changes) { Object.assign(st.groups[id], changes); save(); return changes; },
+    async removeMember(id, uid) { const g = st.groups[id]; g.members = g.members.filter(m => m !== uid); g.memberCount = g.members.length; save(); return { ok: true }; },
+    async newGroupCode(id) { st.groups[id].code = code(); save(); return { code: st.groups[id].code }; },
+    groupMembers: async id => st.groups[id].members.map(uid => ({ uid, name: nameOf(uid) })),
     async joinGroup(c) {
       const id = Object.keys(st.groups).find(k => st.groups[k].code === String(c).toUpperCase());
       if (!id) throw Object.assign(new Error("No group has that code."), { code: "not-found" });

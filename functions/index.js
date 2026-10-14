@@ -22,6 +22,9 @@ export const getMe = call(h.getMe);
 export const createGroup = call(h.createGroup);
 export const joinGroup = call(h.joinGroup);
 export const leaveGroup = call(h.leaveGroup);
+export const updateGroup = call(h.updateGroup);
+export const removeMember = call(h.removeMember);
+export const newGroupCode = call(h.newGroupCode);
 export const groupDay = call(h.groupDay);
 export const groupMonth = call(h.groupMonth);
 // Admin page: only Google-verified addresses listed in ADMIN_EMAILS (the GitHub secret, written to functions/.env at deploy; empty means nobody).

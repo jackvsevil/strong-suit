@@ -266,3 +266,35 @@ test("admin stats: per-hand starts and finishes, per-round skips and per-pair re
   assert.equal(h1.rounds[1].pairs.reduce((t, p) => t + p.correct, 0), h1.rounds[1].correct);
   assert.equal(s.hands.find(x => x.hand === 2).rounds.length, 0, "hand 2 has no categories in the fixture");
 });
+
+test("group creator: symbol, rename, remove a member, new invite code", async () => {
+  const { db, h } = setup();
+  const g = await h.createGroup({ name: "Pub quiz", symbol: "owl" }, "a");
+  assert.equal(db.store.get(`groups/${g.groupId}`).symbol, "owl");
+  const g2 = await h.createGroup({ name: "Other", symbol: "nonsense" }, "a");
+  assert.equal(db.store.get(`groups/${g2.groupId}`).symbol, "club", "unknown symbols fall back to clubs");
+  await h.joinGroup({ code: g.code }, "b");
+  await h.joinGroup({ code: g.code }, "c");
+  // only the creator
+  await code(h.updateGroup({ groupId: g.groupId, name: "Mine now" }, "b"), "permission-denied");
+  await code(h.removeMember({ groupId: g.groupId, memberUid: "c" }, "b"), "permission-denied");
+  await code(h.newGroupCode({ groupId: g.groupId }, "b"), "permission-denied");
+  // rename and re-symbol
+  await code(h.updateGroup({ groupId: g.groupId, name: "Tossers" }, "a"), "invalid-argument");
+  await code(h.updateGroup({ groupId: g.groupId, symbol: "skull" }, "a"), "invalid-argument");
+  await h.updateGroup({ groupId: g.groupId, name: "Quiz Night", symbol: "heart" }, "a");
+  assert.equal(db.store.get(`groups/${g.groupId}`).name, "Quiz Night");
+  assert.equal(db.store.get(`groups/${g.groupId}`).symbol, "heart");
+  // remove a member
+  await code(h.removeMember({ groupId: g.groupId, memberUid: "a" }, "a"), "invalid-argument");
+  await h.removeMember({ groupId: g.groupId, memberUid: "c" }, "a");
+  assert.equal(db.store.get(`groups/${g.groupId}/members/c`), undefined);
+  assert.equal(db.store.get(`groups/${g.groupId}`).memberCount, 2);
+  assert.deepEqual(db.store.get("players/c").groupIds, []);
+  // new code: the old one stops working
+  const { code: fresh } = await h.newGroupCode({ groupId: g.groupId }, "a");
+  assert.notEqual(fresh, g.code);
+  await code(h.joinGroup({ code: g.code }, "c"), "not-found");
+  const j = await h.joinGroup({ code: fresh }, "d");
+  assert.equal(j.groupId, g.groupId);
+});
