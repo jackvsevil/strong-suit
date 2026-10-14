@@ -93,7 +93,8 @@ p{margin:0}
 .fan{position:relative;height:190px;margin:8px auto 28px;width:100%;max-width:340px}
 .fan{--cb1:var(--back);--cb2:var(--back-2);--cbsym:var(--on-back)}
 .fan .cb{position:absolute;left:50%;bottom:0;width:104px;height:150px;margin-left:-52px;border-radius:12px;border:5px solid var(--card);
-  background:repeating-linear-gradient(45deg,var(--cb1) 0 7px,var(--cb2) 7px 9px),var(--cb1);box-shadow:var(--shadow);transform-origin:50% 120%}
+  /* stripe edges feathered over ~0.8px: hard stops alias into jagged steps, worst on high-contrast themed backs */
+  background:repeating-linear-gradient(45deg,var(--cb1) 0 6.4px,var(--cb2) 7px 8.4px,var(--cb1) 9px),var(--cb1);box-shadow:var(--shadow);transform-origin:50% 120%}
 /* themed days: card-back colours (the middle card's symbol comes from data-sym) */
 body.theme-halloween .fan{--cb1:#1C1A1F;--cb2:#E8731A}
 body.theme-movember .fan{--cb1:#5B3A24;--cb2:#C9A27E}
