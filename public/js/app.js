@@ -591,15 +591,15 @@ async function renderGroups() {
 }
 
 /* ---------- group symbols (IDs match GROUP_SYMBOLS on the server) ---------- */
-const VS15 = "\uFE0E";   // ask for the plain text glyph, not the emoji, so suits take our colours
+const VS16 = "\uFE0F";   // ask for the emoji version of the suits, to match the other symbols
 const SYMBOLS = {
-  spade: "♠" + VS15, heart: "♥" + VS15, diamond: "♦" + VS15, club: "♣" + VS15,
-  joker: "🃏", crown: "👑", star: "★", dice: "🎲", trophy: "🏆", target: "🎯",
+  spade: "♠" + VS16, heart: "♥" + VS16, diamond: "♦" + VS16, club: "♣" + VS16,
+  joker: "🃏", crown: "👑", star: "⭐", dice: "🎲", trophy: "🏆", target: "🎯",
   beer: "🍺", wine: "🍷", coffee: "☕", brain: "🧠", owl: "🦉", fire: "🔥", bolt: "⚡", octopus: "🐙", fox: "🦊", bee: "🐝",
 };
 const SYMBOL_NAMES = { spade: "Spades", heart: "Hearts", diamond: "Diamonds", club: "Clubs", joker: "Joker", crown: "Crown", star: "Star", dice: "Dice", trophy: "Trophy", target: "Target",
   beer: "Beer", wine: "Wine", coffee: "Coffee", brain: "Brain", owl: "Owl", fire: "Fire", bolt: "Lightning", octopus: "Octopus", fox: "Fox", bee: "Bee" };
-const symHtml = id => { const k = SYMBOLS[id] ? id : "club"; return '<span class="sym' + (k === "heart" || k === "diamond" ? " red" : "") + '" aria-hidden="true">' + SYMBOLS[k] + "</span>"; };
+const symHtml = id => '<span class="sym" aria-hidden="true">' + SYMBOLS[SYMBOLS[id] ? id : "club"] + "</span>";
 /** Fills a .symgrid with one button per symbol; onPick(id) is called when one is chosen. */
 function symbolPicker(el, selected, onPick) {
   el.innerHTML = "";
