@@ -359,7 +359,8 @@ details.subj .list{padding-bottom:12px}
 .symgrid button[aria-checked="true"]{border-color:var(--back-2);box-shadow:0 0 0 3px var(--back-2)}
 .sym{display:inline-grid;place-items:center;width:1.6em;height:1.6em;border-radius:.3em;background:#FFFFFF;border:1px solid var(--line);font-family:system-ui,sans-serif;font-size:20px;line-height:1;vertical-align:middle}
 .symgrid .sym{background:none;border:0;width:auto;height:auto;font-size:inherit}
-#gName .sym{font-size:20px;margin-right:10px;vertical-align:4px}
+#gName{display:flex;align-items:center;gap:10px}
+#gName .sym{font-size:20px;flex:none}
 details.manage:not([open]){gap:0;padding-block:14px}   /* no gap left over for the folded content */
 /* an open <details> doesn't pass its flex gap to the sections inside, so space them directly */
 details.manage[open]{gap:0}
