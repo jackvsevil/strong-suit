@@ -360,6 +360,11 @@ details.subj .list{padding-bottom:12px}
 .sym{display:inline-grid;place-items:center;width:1.6em;height:1.6em;border-radius:.3em;background:#FFFFFF;border:1px solid var(--line);font-family:system-ui,sans-serif;font-size:20px;line-height:1;vertical-align:middle}
 .symgrid .sym{background:none;border:0;width:auto;height:auto;font-size:inherit}
 #gName .sym{font-size:20px;margin-right:10px;vertical-align:4px}
+details.manage summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
+details.manage summary::-webkit-details-marker{display:none}
+details.manage summary small{display:block;color:var(--muted);font-size:13px;font-weight:500}
+details.manage summary .chev{transition:transform .15s;font-size:20px}
+details.manage[open] summary .chev{transform:rotate(90deg)}
 .mem{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;font-size:15px;min-height:36px}
 .mem .linkbtn{padding:4px 0}
 .or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
@@ -493,13 +498,13 @@ details.subj .list{padding-bottom:12px}
     </div>
     <div class="stepper" id="gStep"><button class="iconbtn" id="gPrev" aria-label="Earlier">‹</button><div><b id="gWhen"></b><small id="gWhenSub"></small></div><button class="iconbtn" id="gNext" aria-label="Later">›</button></div>
     <div class="stack" id="gBody"></div>
-    <div class="card" id="gManage" hidden>
-      <div><b>Manage group</b><p class="small muted">Only you can see this, as the group's creator.</p></div>
+    <details class="card manage" id="gManage" hidden>
+      <summary><span><b>Manage group</b><small>Rename, symbol, invite code, members. Only you can see this.</small></span><span class="chev" aria-hidden="true">›</span></summary>
       <div class="field"><input id="gRename" maxlength="30" aria-label="Group name"><button class="btn" id="gRenameBtn">Rename</button></div>
       <div><p class="small muted">Symbol</p><div class="symgrid" id="gSym" role="radiogroup" aria-label="Group symbol"></div></div>
       <div class="namebar"><div><b>Invite code <span id="gCode"></span></b><p class="small muted">A new code stops the old one working, including for anyone who hasn't joined yet.</p></div><button class="btn ghost small" id="gNewCode" style="flex:none">New code</button></div>
       <div><b>Members</b><div class="list" id="gMembers" style="margin-top:8px"></div></div>
-    </div>
+    </details>
     <button class="linkbtn" id="gLeave">Leave this group</button>
   </section>
 

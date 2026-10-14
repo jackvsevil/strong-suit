@@ -648,6 +648,7 @@ async function renderGroup(gid) {
 async function drawManage(g) {
   const mine = g.ownerUid === api.account().uid;
   $("gManage").hidden = !mine;
+  $("gManage").open = false;   // starts folded; the creator taps to open it
   if (!mine) return;
   $("gRename").value = g.name;
   $("gCode").textContent = g.code;
