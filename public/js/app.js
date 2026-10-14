@@ -1003,7 +1003,6 @@ async function boot() {
     return;
   }
   let seen = false; try { seen = localStorage.getItem("ss_seen_howto") === "1"; } catch (_) {}
-  if (!seen) openHow();
-  else if (S.hand && !S.play) openHand(S.n);
+  if (!seen) openHow();   // first visit: how to play; otherwise stay on the home screen with its Play button
 }
 boot();
