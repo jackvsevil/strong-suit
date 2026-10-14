@@ -50,14 +50,17 @@ async function refresh() {
   } finally { $("refresh").disabled = false; }
 }
 $("refresh").onclick = refresh;
+let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => data && render(), 200); });
 
 /* ---------- charts: plain SVG, one hue per meaning ---------- */
 function niceMax(v) { if (v <= 5) return 5; const p = 10 ** Math.floor(Math.log10(v)), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
 /** bars: [{ label, title, back?, value }] — back is an optional wider, paler bar behind (e.g. started vs finished). */
-function barChart(el, bars, { max, fmt = v => v } = {}) {
+function barChart(el, bars, { max, fmt = v => v, height = 190 } = {}) {
   if (!bars.length) { el.innerHTML = '<p class="muted small">Nothing yet.</p>'; return; }
-  const W = 600, H = 190, L = 34, B = 22, T = 8, iw = W - L - 4, ih = H - B - T;
-  const top = niceMax(max ?? Math.max(1, ...bars.map(b => Math.max(b.value, b.back || 0))));
+  if (el.classList.contains("fill")) { el.innerHTML = ""; height = Math.max(height, Math.floor(el.clientHeight)); }   // take the card's full height
+  const W = Math.max(300, Math.round(el.clientWidth || 600)), L = 34, B = 22, T = 8, iw = W - L - 4;   // drawn at real size, so text stays 11px
+  const top = max ?? niceMax(Math.max(1, ...bars.map(b => Math.max(b.value, b.back || 0))));   // a given max is used as it is (e.g. 60)
+  const H = height, ih = H - B - T;
   const step = iw / bars.length, bw = Math.max(2, Math.min(28, step * 0.7)), every = Math.ceil(bars.length / 12);
   const y = v => T + ih - (v / top) * ih;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
@@ -95,8 +98,6 @@ function render() {
   barChart($("chPlayers"), open.map(h => ({ label: "#" + h.hand, value: h.finished, back: h.started,
     title: `Hand #${h.hand} (${fmtDate(h.date)}): ${h.started} started, ${h.finished} finished, ${h.bonusPlayed} played the bonus` })));
   barChart($("chNew"), d.newPlayers.map(x => ({ label: fmtDate(x.date), value: x.n, title: `${fmtDate(x.date)}: ${x.n} new` })));
-  barChart($("chScore"), open.filter(h => h.finished).map(h => ({ label: "#" + h.hand, value: h.totalScore / h.finished,
-    title: `Hand #${h.hand}: average ${(h.totalScore / h.finished).toFixed(1)} from ${h.finished} players` + (h.awareTotal ? `, self-awareness ${Math.round(h.awareTotal / h.finished)}%` : "") })), { max: 60 });
 
   const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct(x.correct || 0, (x.rounds || 0) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
     .sort((a, b) => (a.right ?? 101) - (b.right ?? 101));
@@ -117,6 +118,9 @@ function render() {
   $("tbPairs").innerHTML = '<div class="pairs">' + table([{ t: "Pair" }, { t: "Round" }, { t: "Right", n: 1 }],
     pairs.map(p => [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", "#" + p.hand + " " + roundName(p.round), fmtPct(p.rate) + small(p.n) + meter(p.rate)])) + "</div>";
 
+  // drawn last, once the Subjects table beside it has set the row's height
+  barChart($("chScore"), open.filter(h => h.finished).map(h => ({ label: "#" + h.hand, value: h.totalScore / h.finished,
+    title: `Hand #${h.hand}: average ${(h.totalScore / h.finished).toFixed(1)} from ${h.finished} players` + (h.awareTotal ? `, self-awareness ${Math.round(h.awareTotal / h.finished)}%` : "") })), { max: 60 });
   const pick = $("handPick"), was = pick.value;
   pick.innerHTML = open.slice().reverse().map(h => `<option value="${h.hand}">Hand #${h.hand} · ${fmtDate(h.date)}</option>`).join("");
   if (was && open.find(h => String(h.hand) === was)) pick.value = was;

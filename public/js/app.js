@@ -565,7 +565,7 @@ async function renderHands() {
     }
     list.appendChild(d);
   }
-  if (missed) $("handsNote").textContent = "Playing hands you missed is coming with Plus.";
+  if (missed) $("handsNote").textContent = "Playing hands you missed is coming with ♠\uFE0E Plus.";
 }
 
 /* ---------- groups ---------- */

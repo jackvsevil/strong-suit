@@ -36,6 +36,7 @@ p{margin:0}
 .btn{border:0;border-radius:10px;background:var(--back);color:var(--on-back);font-weight:700;padding:10px 16px;cursor:pointer}
 .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr))}
+.fill{flex:1;min-height:190px}   /* a chart that grows to the height of its card */
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .tiles{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:12px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
@@ -80,7 +81,7 @@ select{border:1px solid var(--line);background:var(--card);border-radius:8px;pad
       <div class="card"><div><h2>Players per hand</h2><p class="muted small">Started a hand, and finished all four rounds.</p></div>
         <div class="legend"><span><i style="background:var(--soft)"></i>Started</span><span><i style="background:var(--back-2)"></i>Finished</span></div><div id="chPlayers"></div></div>
       <div class="card"><div><h2>New players per day</h2><p class="muted small">Profiles created (guests included), last 30 days, UTC.</p></div><div id="chNew"></div></div>
-      <div class="card"><div><h2>Average score per hand</h2><p class="muted small">Out of 60, finished hands only.</p></div><div id="chScore"></div></div>
+      <div class="card"><div><h2>Average score per hand</h2><p class="muted small">Out of 60, finished hands only.</p></div><div class="fill" id="chScore"></div></div>
       <div class="card"><div><h2>Subjects</h2><p class="muted small">All hands so far: share of pairs right, and how often skipped when dealt.</p></div><div class="tablewrap" id="tbFams"></div></div>
     </div>
     <div class="grid section">
