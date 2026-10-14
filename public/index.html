@@ -360,6 +360,7 @@ details.subj .list{padding-bottom:12px}
 .sym{display:inline-grid;place-items:center;width:1.6em;height:1.6em;border-radius:.3em;background:#FFFFFF;border:1px solid var(--line);font-family:system-ui,sans-serif;font-size:20px;line-height:1;vertical-align:middle}
 .symgrid .sym{background:none;border:0;width:auto;height:auto;font-size:inherit}
 #gName .sym{font-size:20px;margin-right:10px;vertical-align:4px}
+details.manage:not([open]){gap:0;padding-block:14px}   /* no gap left over for the folded content */
 details.manage summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
 details.manage summary::-webkit-details-marker{display:none}
 details.manage summary small{display:block;color:var(--muted);font-size:13px;font-weight:500}
