@@ -361,6 +361,10 @@ details.subj .list{padding-bottom:12px}
 .symgrid .sym{background:none;border:0;width:auto;height:auto;font-size:inherit}
 #gName .sym{font-size:20px;margin-right:10px;vertical-align:4px}
 details.manage:not([open]){gap:0;padding-block:14px}   /* no gap left over for the folded content */
+/* an open <details> doesn't pass its flex gap to the sections inside, so space them directly */
+details.manage[open]{gap:0}
+details.manage[open] > :not(summary){margin-top:20px}
+details.manage[open] > summary + *{margin-top:16px}
 details.manage summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
 details.manage summary::-webkit-details-marker{display:none}
 details.manage summary small{display:block;color:var(--muted);font-size:13px;font-weight:500}
