@@ -293,3 +293,22 @@ test("group creator: symbol, rename, remove a member, new invite code", async ()
   const j = await h.joinGroup({ code: fresh }, "d");
   assert.equal(j.groupId, g.groupId);
 });
+
+test("Joker rounds play and score as normal but are left out of subject stats", async () => {
+  const { db, h } = setup();
+  const hand = db.store.get("hands/1");
+  hand.categories[1].family = "Joker";   // slot 1 (was Music) is a silly wildcard round
+  hand.categories[2].family = "Joker";   // and so is slot 2, which gets skipped
+  db.store.set("hands/1", hand);
+  await h.startHand({ hand: 1, ranking: [3, 0, 4, 1, 2] }, "j");   // plays 1, 4, 0, 3; skips 2
+  let final;
+  for (let k = 0; k < 4; k++) {
+    const d = await h.startRound({ hand: 1 }, "j");
+    final = (await h.submitRound({ hand: 1, key: d.key, picks: picksFor(d, 6) }, "j")).final || final;
+  }
+  assert.equal(final.score, 60, "the Joker round still scores");
+  const fams = db.store.get("players/j").stats.families;
+  assert.equal(fams.Joker, undefined);
+  assert.equal(fams["Film & TV"].rounds, 1);
+  assert.equal(db.store.get("stats/families").families.Joker, undefined);
+});

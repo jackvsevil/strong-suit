@@ -125,7 +125,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
         const streak = G.nextStreak(st, hand);
         // per subject: times dealt, skipped, played, and pairs right
         const families = {};
-        const fam = f => (families[f] ||= {});
+        const fam = f => G.countsInStats(f) ? (families[f] ||= {}) : {};   // Joker rounds aren't counted
         p.categories.forEach(c => { fam(c.family).dealt = FieldValue.increment(1); });
         fam(p.categories[p.skipped].family).skipped = FieldValue.increment(1);
         [0, 1, 2].map(k => p.rounds[k]).concat(result).forEach(x => {

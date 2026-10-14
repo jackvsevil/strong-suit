@@ -4,6 +4,11 @@ import { randomInt } from "node:crypto";
 // Rounds have no time limit. The server still times each one (from the end of the 3-2-1 countdown to lock-in)
 // to split tied scores, counting at most ROUND_CAP_SECONDS so a round left open for hours can't skew the totals.
 export const ROUND_CAP_SECONDS = 600;
+
+// "Joker" is a wildcard subject for silly one-off rounds (April Fools and the like). It plays like any other
+// subject but is left out of every per-subject stat: profiles, group subject tables, skip data and the admin page.
+export const WILDCARD_FAMILY = "Joker";
+export const countsInStats = family => family !== WILDCARD_FAMILY;
 export const PAIRS = 6;
 export const CATEGORIES = 5;
 export const MAX_SCORE = PAIRS * (1 + 2 + 3 + 4);   // 60

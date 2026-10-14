@@ -67,7 +67,9 @@ export const TUTORIAL = [
 ];
 
 
-export const FAMILY_EMOJI = {"Film & TV":"🎬","Music":"🎵","Sport":"⚽","Geography":"🌍","History":"📜","Science & Nature":"🔬","Food & Drink":"🍽️","Language":"🔤","Art & Literature":"🎨","Pop Culture":"✨"};
+export const FAMILY_EMOJI = {"Film & TV":"🎬","Music":"🎵","Sport":"⚽","Geography":"🌍","History":"📜","Science & Nature":"🔬","Food & Drink":"🍽️","Language":"🔤","Art & Literature":"🎨","Pop Culture":"✨","Joker":"🃏"};
+// the wildcard subject for silly one-off rounds: playable, but left out of every per-subject stat (must match functions/lib/game.js)
+export const WILDCARD = "Joker";
 
 /** Converts the prototype format into what the engine and server use. */
 export function toHand(cats, number) {

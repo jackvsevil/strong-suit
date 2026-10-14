@@ -1,6 +1,6 @@
 // Strong Suit admin page. The data comes from the adminStats function, which refuses anyone not on the admin list.
 // ?demo=1 shows made-up numbers, for checking the layout without signing in.
-import { DAYS, toHand, FAMILY_EMOJI } from "./content.js";
+import { DAYS, toHand, FAMILY_EMOJI, WILDCARD } from "./content.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
 const $ = id => document.getElementById(id);
@@ -159,7 +159,7 @@ function demoStats() {
     };
   });
   const families = {};
-  hands.forEach(h => h.rounds.forEach(x => { const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
+  hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
   const today = Date.now();
   return {
     launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37 }, families, hands,

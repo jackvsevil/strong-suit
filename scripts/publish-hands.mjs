@@ -51,7 +51,9 @@ for (const r of rows) {
 const problems = [];
 function check(n, rounds) {
   if (rounds.length !== 5) return `has ${rounds.length} rounds marked ${STATUSES.join("/")}`;
-  if (new Set(rounds.map(x => x.family)).size !== 5) return "repeats a family";
+  // five different families, except that a hand may have several Joker (wildcard) rounds
+  const fams = rounds.map(x => x.family).filter(f => f !== "Joker");
+  if (new Set(fams).size !== fams.length) return "repeats a family";
   for (const x of rounds) {
     if (!x.label || !x.family) return `${x.categoryId} has no label or family`;
     if (x.prompts.some(p => !p) || x.answers.some(a => !a)) return `${x.label} needs six prompts and six answers`;
