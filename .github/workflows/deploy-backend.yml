@@ -19,7 +19,10 @@ jobs:
       - run: npm ci --prefix functions
       - run: npm test --prefix functions
       - name: Admin list (from the ADMIN_EMAILS secret; kept out of the public repo)
-        run: printf 'ADMIN_EMAILS=%s\n' "$ADMIN_EMAILS" > functions/.env
+        run: |
+          printf 'ADMIN_EMAILS=%s\n' "$ADMIN_EMAILS" > functions/.env
+          n=$(printf '%s' "$ADMIN_EMAILS" | tr ',' '\n' | grep -c '@' || true)
+          echo "::notice title=Admin list::$n admin address(es) set for the admin page"
         env:
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
       - uses: google-github-actions/auth@v2

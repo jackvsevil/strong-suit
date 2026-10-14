@@ -24,7 +24,7 @@ export const joinGroup = call(h.joinGroup);
 export const leaveGroup = call(h.leaveGroup);
 export const groupDay = call(h.groupDay);
 export const groupMonth = call(h.groupMonth);
-// Admin page: only Google-verified addresses listed in ADMIN_EMAILS (set from a GitHub secret at deploy; empty means nobody).
+// Admin page: only Google-verified addresses listed in ADMIN_EMAILS (the GitHub secret, written to functions/.env at deploy; empty means nobody).
 const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
 export const adminStats = onCall({ cors: true, memory: "512MiB", timeoutSeconds: 60 }, async req => {
   const t = req.auth && req.auth.token;
