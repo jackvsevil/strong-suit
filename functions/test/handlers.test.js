@@ -93,25 +93,31 @@ test("a full hand: ranking, four rounds, scoring, stats, bonus", async () => {
   await code(h.startRound({ hand: 1, bonus: true }, "u1"), "failed-precondition");
 });
 
-test("late rounds score nothing; bad picks are refused", async () => {
-  const { h, tick } = setup();
+test("no time limit: a slow round still counts, but its time is capped; bad picks are refused", async () => {
+  const { db, h, tick } = setup();
   await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, "u2");
   const d = await h.startRound({ hand: 1 }, "u2");
+  assert.equal(d.deadline, undefined);
+  assert.equal(d.startsAt - d.now, 3000, "the stopwatch starts after the 3-2-1 countdown");
   await code(h.submitRound({ hand: 1, key: d.key, picks: [0, 0, 1, 2, 3, 4] }, "u2"), "invalid-argument");
   await code(h.submitRound({ hand: 1, key: "2", picks: picksFor(d, 6) }, "u2"), "failed-precondition");
-  tick((3 + 45 + 9) * 1000);
+  tick(60 * 60 * 1000);   // an hour later
+  const again = await h.startRound({ hand: 1 }, "u2");
+  assert.equal(again.startsAt, d.startsAt, "resuming after a refresh keeps the original start");
   const r = await h.submitRound({ hand: 1, key: d.key, picks: picksFor(d, 6) }, "u2");
-  assert.equal(r.result.correct, 0);
-  assert.equal(r.result.late, true);
+  assert.equal(r.result.correct, 6);
+  assert.equal(r.result.late, false);
+  assert.equal(r.result.serverMs, 600000, "time counts at most 10 minutes a round");
 });
 
-test("within the grace period still counts", async () => {
+test("a round of two minutes is timed at two minutes", async () => {
   const { h, tick } = setup();
   await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, "u3");
   const d = await h.startRound({ hand: 1 }, "u3");
-  tick((3 + 45 + 5) * 1000);
+  tick((3 + 120) * 1000);
   const r = await h.submitRound({ hand: 1, key: d.key, picks: picksFor(d, 6) }, "u3");
   assert.equal(r.result.correct, 6);
+  assert.equal(r.result.serverMs, 120000);
 });
 
 test("groups: create, join, cap, rename, leave, delete account", async () => {

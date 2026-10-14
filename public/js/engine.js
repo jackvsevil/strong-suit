@@ -1,6 +1,6 @@
 // A local copy of the server's game rules. Used for the practice hand and demo mode only;
 // real hands are always checked by the server (functions/lib/handlers.js).
-export const ROUND_SECONDS = 45;
+export const ROUND_CAP_SECONDS = 600;   // no time limit; time (for tie-breaks) counts at most 10 minutes a round
 const LEAD_SECONDS = 3;
 
 export function finalScore(correct) {
@@ -30,7 +30,7 @@ export function makeEngine({ hands, plays = {}, onSave = () => {}, onFinish = ()
     async startRound(n, bonus) {
       const p = plays[n];
       if (!p) throw err("failed-precondition", "Rank your hand first.");
-      if (p.current && (p.current.key === "bonus") === !!bonus) return { ...p.current, now: Date.now(), seconds: ROUND_SECONDS };
+      if (p.current && (p.current.key === "bonus") === !!bonus) return { ...p.current, now: Date.now(), capSeconds: ROUND_CAP_SECONDS };
       let key = null;
       if (bonus) key = p.status === "done" && !p.bonus ? "bonus" : null;
       else for (let k = 0; k < 4; k++) if (!p.rounds[k]) { key = String(k); break; }
@@ -39,9 +39,9 @@ export function makeEngine({ hands, plays = {}, onSave = () => {}, onFinish = ()
       const r = hands[n].rounds[slot], cat = p.categories[slot], perm = shuffle(6);
       secrets[n] = perm;
       p.current = { key, slot, mult: key === "bonus" ? 0 : +key + 1, label: cat.label, family: cat.family,
-        prompts: r.prompts, answers: perm.map(j => r.answers[j]), deadline: Date.now() + (LEAD_SECONDS + ROUND_SECONDS) * 1000 };
+        prompts: r.prompts, answers: perm.map(j => r.answers[j]), startsAt: Date.now() + LEAD_SECONDS * 1000 };
       onSave();
-      return { ...p.current, now: Date.now(), seconds: ROUND_SECONDS };
+      return { ...p.current, now: Date.now(), capSeconds: ROUND_CAP_SECONDS };
     },
     async submitRound(n, key, picks, timeMs) {
       const p = plays[n], cur = p && p.current;
@@ -60,7 +60,7 @@ export function makeEngine({ hands, plays = {}, onSave = () => {}, onFinish = ()
         p.rounds[key] = result;
         if (key === "3") {
           final = finalScore([0, 1, 2, 3].map(k => p.rounds[k].correct));
-          final.time = [0, 1, 2, 3].reduce((t, k) => t + Math.min(ROUND_SECONDS * 1000, p.rounds[k].timeMs || 0), 0);
+          final.time = [0, 1, 2, 3].reduce((t, k) => t + Math.min(ROUND_CAP_SECONDS * 1000, p.rounds[k].timeMs || 0), 0);
           Object.assign(p, final, { status: "done", finishedAt: Date.now() });
           onFinish(n, p);
         }

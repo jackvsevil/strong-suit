@@ -1,8 +1,9 @@
 // Pure game rules: no Firebase here, so everything can be unit-tested.
 import { randomInt } from "node:crypto";
 
-export const ROUND_SECONDS = 45;
-export const GRACE_SECONDS = 8;          // network slack after the timer ends
+// Rounds have no time limit. The server still times each one (from the end of the 3-2-1 countdown to lock-in)
+// to split tied scores, counting at most ROUND_CAP_SECONDS so a round left open for hours can't skew the totals.
+export const ROUND_CAP_SECONDS = 600;
 export const PAIRS = 6;
 export const CATEGORIES = 5;
 export const MAX_SCORE = PAIRS * (1 + 2 + 3 + 4);   // 60

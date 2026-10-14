@@ -151,10 +151,8 @@ body[class*="theme-"] .fan .cb{border-color:#F4F1EA}   /* themed backs get a cre
 .rh-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .rh-row .rule{font-weight:700;font-size:18px;line-height:1.25}
 .chipmult{flex:0 0 auto;font:600 22px/1 var(--display);color:var(--red);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-.timer{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
-.timer i{display:block;height:100%;width:100%;background:var(--back-2);transform-origin:left;transition:transform .25s linear}
-.timer.low i{background:var(--red)}
-.secs{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;color:var(--muted)}
+.secs{font-variant-numeric:tabular-nums;font-weight:500;font-size:13px;color:var(--muted);opacity:.7;display:inline-flex;align-items:center;gap:4px}   /* a quiet stopwatch: no limit, it only splits ties */
+.secs svg{width:12px;height:12px}
 .pairs{display:flex;flex-direction:column;gap:8px}
 #pairs{gap:10px}
 .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:stretch}
@@ -439,8 +437,7 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
   <section class="screen stack" id="round" hidden>
     <div class="roundhead">
       <div class="rh-row"><div><p class="small muted" id="rFam"></p><p class="rule" id="rRule"></p></div><div class="chipmult" id="rMult">×1</div></div>
-      <div class="timer" id="timer"><i id="timerBar"></i></div>
-      <div class="rh-row"><span class="secs" id="secs">45s</span><span class="hint" id="rHint">Tap or drag to match</span></div>
+      <div class="rh-row"><span class="secs" id="timer" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg><span id="secs">0:00</span></span><span class="hint" id="rHint">Tap or drag to match</span></div>
     </div>
     <div class="pairs" id="pairs"></div>
     <div class="pool" id="pool" aria-label="Answers"></div>
@@ -553,7 +550,7 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
     <ol class="rules">
       <li><p>You're dealt <b>five categories</b>. Tap them from <b>strongest to weakest</b>. You'll skip your weakest!</p></li>
       <li><p>You play the other four from weakest to strongest, and each round is worth more than the last.</p><div class="example" style="grid-column:2"><span class="mx1">×1</span><i class="arr" aria-hidden="true">→</i><span class="mx2">×2</span><i class="arr" aria-hidden="true">→</i><span class="mx3">×3</span><i class="arr" aria-hidden="true">→</i><span class="mx4">×4</span></div></li>
-      <li><p>Each round, <b>match six pairs in 45 seconds</b>. Every correct pair scores its round's multiplier.</p></li>
+      <li><p>Each round, <b>match six pairs</b>. Every correct pair scores its round's multiplier. Take as long as you like: time only splits tied scores.</p></li>
     </ol>
     <button class="btn" id="howClose">Got it</button>
     <button class="btn ghost" id="howPractice">New here? Try a practice hand</button>

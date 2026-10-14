@@ -69,14 +69,16 @@ const startRound = (async ({ hand, bonus }, uid) => {
     const next = {
       key, slot, mult: key === "bonus" ? 0 : +key + 1, label: cat.label, family: cat.family,
       prompts: round.prompts, answers: perm.map(j => round.answers[j]),
-      deadline: Timestamp.fromMillis(now() + (LEAD_SECONDS + G.ROUND_SECONDS) * 1000),
+      startsAt: Timestamp.fromMillis(now() + LEAD_SECONDS * 1000),   // when the 3-2-1 countdown ends and the stopwatch starts
     };
     tx.update(r.play, { current: next });
     tx.set(r.secret, { uid, hand, key, perm });
     return payload(next);
   });
 });
-const payload = c => ({ ...c, deadline: c.deadline.toMillis(), now: now(), seconds: G.ROUND_SECONDS });
+// rounds dealt before the time limit was dropped stored a deadline 45s after the start instead
+const startMs = c => c.startsAt ? c.startsAt.toMillis() : c.deadline.toMillis() - 45000;
+const payload = c => { const { deadline, ...rest } = c; return { ...rest, startsAt: startMs(c), now: now(), capSeconds: G.ROUND_CAP_SECONDS }; };
 
 /* ---------- 3. Check a round; after round four, score the hand ---------- */
 const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
@@ -88,10 +90,10 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
     if (!play.exists) fail("failed-precondition", "Rank your hand first.");
     const p = play.data(), cur = p.current;
     if (!cur || cur.key !== key || !secret.exists) fail("failed-precondition", "That round isn't in play.");
-    const late = now() > cur.deadline.toMillis() + G.GRACE_SECONDS * 1000;
+    const late = false;   // no time limit: a round counts however long it takes
     // time taken by the server's clock (the round starts when the 3-2-1 countdown ends): the leaderboard tie-break
-    const serverMs = Math.min(G.ROUND_SECONDS * 1000, Math.max(0, now() - (cur.deadline.toMillis() - G.ROUND_SECONDS * 1000)));
-    const { chosen, marks, correct } = G.markRound(secret.get("perm"), picks, late);
+    const serverMs = Math.min(G.ROUND_CAP_SECONDS * 1000, Math.max(0, now() - startMs(cur)));
+    const { chosen, marks, correct } = G.markRound(secret.get("perm"), picks);
     const round = keys.get("rounds")[cur.slot];
     const cat = p.categories[cur.slot];
     const result = {
@@ -116,7 +118,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
       if (key === "3") {
         const correctByRound = [0, 1, 2].map(k => p.rounds[k].correct).concat(correct);
         final = G.finalScore(correctByRound);
-        final.time = [0, 1, 2].map(k => p.rounds[k].serverMs ?? G.ROUND_SECONDS * 1000).reduce((a, b) => a + b, serverMs);
+        final.time = [0, 1, 2].map(k => p.rounds[k].serverMs ?? G.ROUND_CAP_SECONDS * 1000).reduce((a, b) => a + b, serverMs);
         Object.assign(upd, { status: "done", finishedAt: FieldValue.serverTimestamp(), ...final });
         const pl = player.exists ? player.data() : newPlayer(uid);
         const st = pl.stats || {};

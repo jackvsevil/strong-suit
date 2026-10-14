@@ -3,7 +3,6 @@ import { createBackend } from "./backend.js";
 import { makeEngine } from "./engine.js";
 import { TUTORIAL, FAMILY_EMOJI, toHand } from "./content.js";
 
-const ROUND_SECONDS = 45;
 const SITE = "https://strongsuitgame.com";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -263,23 +262,20 @@ function roundError(e) {
 
 let rs = null;   // round state
 function beginRound(pl) {
-  const left = G.tut ? Infinity : Math.min(ROUND_SECONDS * 1000, pl.deadline - pl.now - (Date.now() - G.respAt));
-  rs = { pl, answers: Array(6).fill(null), sel: 0, end: Date.now() + left, done: false, started: Date.now() };
+  // the stopwatch runs from the server's start (the end of the 3-2-1), so it carries on after a refresh
+  const start = G.respAt + (pl.startsAt - pl.now);   // the server's start time on this device's clock
+  rs = { pl, answers: Array(6).fill(null), sel: 0, start, cap: (pl.capSeconds || 600) * 1000, done: false, started: Date.now() };
   $("rFam").innerHTML = famLabel(pl.family); $("rRule").textContent = pl.label;
   $("rMult").textContent = G.bonus ? "Bonus" : "×" + pl.mult; $("rMult").className = "chipmult " + (G.bonus ? "mxb" : "mx" + pl.mult);
   show("round"); renderRound();
   clearInterval(timerId);
-  $("timer").hidden = G.tut;
-  if (G.tut) { $("secs").textContent = "No time limit in practice"; return; }
-  if (left <= 0) return lockIn();
-  timerId = setInterval(tick, 200); tick();
+  $("timer").hidden = G.tut;   // the practice hand isn't timed
+  if (G.tut) return;
+  timerId = setInterval(tick, 1000); tick();
 }
-function tick() {
-  const left = Math.max(0, rs.end - Date.now()), s = Math.ceil(left / 1000);
-  $("secs").textContent = s + "s";
-  $("timerBar").style.transform = "scaleX(" + left / (ROUND_SECONDS * 1000) + ")";
-  $("timer").classList.toggle("low", s <= 10);
-  if (left <= 0) lockIn();
+function tick() {   // a quiet stopwatch, whole seconds only; it stops at the cap
+  const s = Math.floor(Math.min(rs.cap, Math.max(0, Date.now() - rs.start)) / 1000);
+  $("secs").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 }
 function renderRound() {
   const st = rs, pairs = $("pairs"); pairs.innerHTML = "";
@@ -423,7 +419,7 @@ function showReveal(result, key) {
   }
   const k = +key, last = k === 3;
   if (G.tut) coach(k === 0
-    ? "Green pairs were right. Red ones show what you picked, then the answer. In a daily hand you get <b>" + ROUND_SECONDS + " seconds</b> a round."
+    ? "Green pairs were right. Red ones show what you picked, then the answer. In a daily hand there's no time limit: a quiet stopwatch runs, and it only splits tied scores."
     : last ? "That's all four rounds. Let's see your score." : "");
   const nextCat = !last && G.play.categories[G.play.order[k + 1]];
   bar([{ label: last ? "See your results" : "Next: ×" + (k + 2) + " " + first(nextCat.label), onClick: () => (last ? renderResults() : readyRound()) }]);

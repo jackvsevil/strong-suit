@@ -201,7 +201,7 @@ function demoBackend() {
     };
     const rounds = {}; order.forEach((slot, k) => (rounds[k] = mk(slot, k + 1)));
     const bonus = r() < 0.5 ? mk(skipped, 0) : null;
-    const time = [0, 1, 2, 3].reduce(t => t + 12000 + Math.floor(r() * 33000), 0);
+    const time = [0, 1, 2, 3].reduce(t => t + 15000 + Math.floor(r() * 75000), 0);
     return { status: "done", ranking, order, skipped, categories: h.categories, rounds, bonus, time, ...finalScore([0, 1, 2, 3].map(k => rounds[k].correct)) };
   }
   const nameOf = uid => (uid === "me" ? st.me.name : (bots.find(b => b.uid === uid) || {}).name);
