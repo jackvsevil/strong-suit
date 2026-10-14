@@ -69,12 +69,12 @@ function untilMidnight() {
 // logo: true looks for brand/themes/<id>-light.png and -dark.png, and keeps the normal logo if they're missing.
 const THEMES = {
   "10-31": { id: "halloween", sym: "🎃", logo: true },
-  "11-01": { id: "movember", sym: "🥸" },
-  "11-05": { id: "bonfire", sym: "🎆" },
-  "2026-11-08": { id: "diwali", sym: "🪔" },
-  "11-30": { id: "standrews", sym: "🦄" },
-  "12-25": { id: "christmas", sym: "🎄" },
-  "12-31": { id: "nye", sym: "🥂" },
+  "11-01": { id: "movember", sym: "🥸", logo: true },
+  "11-05": { id: "bonfire", sym: "🎆", logo: true },
+  "2026-11-08": { id: "diwali", sym: "🪔", logo: true },
+  "11-30": { id: "standrews", sym: "🦄", logo: true },
+  "12-25": { id: "christmas", sym: "🎄", logo: true },
+  "12-31": { id: "nye", sym: "🥂", logo: true },
 };
 function themeFor(d) {
   const forced = new URLSearchParams(location.search).get("theme");   // ?theme=halloween previews a theme
