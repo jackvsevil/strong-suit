@@ -258,7 +258,6 @@ body.tut .wrap{padding-bottom:230px}
 .pill{font-size:12px;font-weight:700;background:var(--table);color:var(--back-2);border-radius:999px;padding:5px 10px;white-space:nowrap}
 .gopen .m{color:var(--back-2)}
 #everyoneRow{background:var(--line);border-color:color-mix(in srgb,var(--muted) 45%,var(--line))}
-#everyoneRow .m{color:var(--muted)}
 .hs .m{color:var(--ink);font-size:24px;text-align:center}
 .hs.skip .m{color:var(--muted)}
 .row.tap{width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit}
@@ -361,16 +360,17 @@ details.subj .list{padding-bottom:12px}
 .symgrid .sym{background:none;border:0;width:auto;height:auto;font-size:inherit}
 #gName{display:flex;align-items:center;gap:10px}
 #gName .sym{font-size:20px;flex:none}
-details.manage:not([open]){gap:0;padding-block:14px}   /* no gap left over for the folded content */
+details.fold:not([open]){gap:0;padding-block:14px}   /* no gap left over for the folded content */
 /* an open <details> doesn't pass its flex gap to the sections inside, so space them directly */
-details.manage[open]{gap:0}
-details.manage[open] > :not(summary){margin-top:20px}
-details.manage[open] > summary + *{margin-top:16px}
-details.manage summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
-details.manage summary::-webkit-details-marker{display:none}
-details.manage summary small{display:block;color:var(--muted);font-size:13px;font-weight:500}
-details.manage summary .chev{transition:transform .15s;font-size:20px}
-details.manage[open] summary .chev{transform:rotate(90deg)}
+details.fold[open]{gap:0}
+details.fold[open] > :not(summary){margin-top:20px}
+#startGroup[open] > :not(summary){margin-top:14px}
+details.fold[open] > summary + *{margin-top:16px}
+details.fold summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
+details.fold summary::-webkit-details-marker{display:none}
+details.fold summary small{display:block;color:var(--muted);font-size:13px;font-weight:500}
+details.fold summary .chev{transition:transform .15s;font-size:20px}
+details.fold[open] summary .chev{transform:rotate(90deg)}
 .mem{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;font-size:15px;min-height:36px}
 .mem .linkbtn{padding:4px 0}
 .or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
@@ -471,17 +471,18 @@ details.manage[open] summary .chev{transform:rotate(90deg)}
   <section class="screen stack" id="groups" hidden>
     <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="stack" style="gap:4px"><h2>Groups</h2><p class="muted small">Play against friends. Free groups hold up to 10 people.</p></div>
-    <button class="row tap gopen" id="everyoneRow"><div class="m">♠</div><div class="t">Everyone<small>Today's top 20 from all players</small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div></button>
+    <button class="row tap gopen" id="everyoneRow"><div class="m"><span class="sym" aria-hidden="true">♠️</span></div><div class="t">Everyone<small>Today's top 20 from all players</small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div></button>
     <div class="list" id="groupList"></div>
     <div class="card">
-      <b>Start a group</b>
-      <input class="textin" id="newGroup" maxlength="30" placeholder="Group name" aria-label="Group name">
-      <div><p class="small muted">Pick its symbol</p><div class="symgrid" id="newSym" role="radiogroup" aria-label="Group symbol"></div></div>
-      <button class="btn" id="createBtn">Create group</button>
-      <div class="or">or</div>
       <b>Join with a code</b>
       <div class="field"><input id="joinCode" maxlength="6" placeholder="ABC123" autocapitalize="characters" autocomplete="off" aria-label="Group code"><button class="btn" id="joinBtn">Join</button></div>
     </div>
+    <details class="card fold" id="startGroup">
+      <summary><span><b>Start a group</b><small>Name it, pick a symbol, then share the code.</small></span><span class="chev" aria-hidden="true">›</span></summary>
+      <input class="textin" id="newGroup" maxlength="30" placeholder="Group name" aria-label="Group name">
+      <div><p class="small muted">Pick its symbol</p><div class="symgrid" id="newSym" role="radiogroup" aria-label="Group symbol"></div></div>
+      <button class="btn" id="createBtn">Create group</button>
+    </details>
   </section>
 
   <!-- YOUR HANDS -->
@@ -504,7 +505,7 @@ details.manage[open] summary .chev{transform:rotate(90deg)}
     </div>
     <div class="stepper" id="gStep"><button class="iconbtn" id="gPrev" aria-label="Earlier">‹</button><div><b id="gWhen"></b><small id="gWhenSub"></small></div><button class="iconbtn" id="gNext" aria-label="Later">›</button></div>
     <div class="stack" id="gBody"></div>
-    <details class="card manage" id="gManage" hidden>
+    <details class="card fold" id="gManage" hidden>
       <summary><span><b>Manage group</b><small>Rename, symbol, invite code, members. Only you can see this.</small></span><span class="chev" aria-hidden="true">›</span></summary>
       <div class="field"><input id="gRename" maxlength="30" aria-label="Group name"><button class="btn" id="gRenameBtn">Rename</button></div>
       <div><p class="small muted">Symbol</p><div class="symgrid" id="gSym" role="radiogroup" aria-label="Group symbol"></div></div>

@@ -578,6 +578,7 @@ async function renderGroups() {
   bar([]);
   const list = $("groupList"); list.innerHTML = '<p class="muted small">Loading…</p>';
   symbolPicker($("newSym"), newSymbol, id => (newSymbol = id));
+  $("startGroup").open = false;   // folded until they want it
   const groups = await api.groups().catch(e => (toast(e.message), []));
   list.innerHTML = groups.length ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
   groups.forEach(g => {
