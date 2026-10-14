@@ -524,11 +524,11 @@ async function renderBoard(n = S.n) {
   } catch (e) { list.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; }
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
-/** Total time across the four rounds, e.g. "2m 41.3s". Tenths, because that's what separates equal scores. */
+/** Total time across the four rounds, e.g. "2:41.3". Tenths, because that's what separates equal scores. */
 const fmtTime = ms => {
   if (!Number.isFinite(ms)) return "";
-  const s = ms / 1000, m = Math.floor(s / 60), r = (s - m * 60).toFixed(1);
-  return (m ? m + "m " : "") + r + "s";
+  const t = Math.round(ms / 100), m = Math.floor(t / 600), s = (t % 600) / 10;
+  return m + ":" + (s < 10 ? "0" : "") + s.toFixed(1);
 };
 
 /* ---------- your hands: every hand so far, newest first ---------- */
