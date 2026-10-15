@@ -19,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: v1   # until launch, the scripts live on the v1 branch
       - uses: actions/setup-node@v4
         with:
           node-version: 22
