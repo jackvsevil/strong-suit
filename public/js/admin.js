@@ -90,6 +90,7 @@ function render() {
   $("updated").textContent = "Updated " + new Date(d.at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }) + (d.launchDate ? " · launch " + fmtDate(d.launchDate) : "");
   $("tiles").innerHTML = [
     ["Visitors (all time)", d.totals.players.toLocaleString("en-GB")],
+    ["Players with an account", d.totals.accounts == null ? "–" : d.totals.accounts.toLocaleString("en-GB") + (d.totals.players ? " · " + fmtPct(pct(d.totals.accounts, d.totals.players)) : "")],
     ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
     ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
     ["Groups", d.totals.groups],
@@ -172,7 +173,7 @@ function demoStats() {
   hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
   const today = Date.now();
   return {
-    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37 }, families, hands,
+    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, accounts: 58 }, families, hands,
     newPlayers: Array.from({ length: 30 }, (_, i) => ({ date: new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10), n: i < 26 ? 0 : Math.floor(30 + r() * 90) })),
     sources: [["direct", "direct"], ["dailydle", "referrer"], ["reddit", "ref"], ["untracked", null], ["dlesgg", "referrer"], ["invite", "ref"], ["someblog.com", "referrer"]].map(([tag, via], i) => {
       const players = Math.max(2, Math.floor((140 - i * 20) * (0.5 + r()))), played = Math.floor(players * (0.5 + r() * 0.4)), returned = Math.floor(played * r() * 0.7), weekEligible = Math.floor(players * 0.6);

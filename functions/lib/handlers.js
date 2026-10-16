@@ -445,6 +445,7 @@ const adminStats = async () => {
     })),
     db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(today - 29 * DAY)).get(),   // for the sources table
   ]);
+  const accounts = await countAccounts();
   const byId = snap => Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
   const K = byId(keys), R = byId(rstats), L = byId(boards);
   const out = hands.docs.map(d => {
@@ -467,10 +468,24 @@ const adminStats = async () => {
   }).sort((a, b) => a.hand - b.hand);
   return {
     launchDate: cfg.exists ? cfg.get("launchDate") : null, at: now(),
-    totals: { players, groups }, newPlayers: newByDay, sources: sourceTable(recent.docs, hands.docs),
+    totals: { players, groups, accounts }, newPlayers: newByDay, sources: sourceTable(recent.docs, hands.docs),
     families: (fams.exists && fams.get("families")) || {}, hands: out,
   };
 };
+
+// Players who've created an account (Google or email link), as opposed to guests. Firebase Auth hands out 1,000 at a time.
+// null if Auth can't be read, so the page shows a dash rather than a wrong number.
+async function countAccounts() {
+  let n = 0, pageToken;
+  try {
+    do {
+      const page = await auth.listUsers(1000, pageToken);
+      n += page.users.filter(u => (u.providerData || []).length).length;
+      pageToken = page.pageToken;
+    } while (pageToken);
+    return n;
+  } catch (e) { console.error("countAccounts", e); return null; }
+}
 
 // New players in the last 30 days by where they came from, and whether they stuck around.
 // "A week on" counts players who finished a hand at least 7 days after the one open when they arrived,
