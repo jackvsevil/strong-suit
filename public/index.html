@@ -320,6 +320,11 @@ body.tut .wrap{padding-bottom:230px}
 .fam-row .fn small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:1px}
 .helpbtn{position:absolute;top:0;right:0;z-index:6}
 .inlinelink{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--back-2);text-decoration:underline;cursor:pointer}
+/* the guest save card: yellow in both themes, with fixed dark text and a navy button so it reads the same everywhere */
+#saveCard{background:var(--yellow);border-color:var(--yellow);color:#15213B}
+#saveCard .muted{color:#15213B;opacity:.85}
+#saveCard #saveBtn{background:#1E3B70;color:#fff}
+#saveCard #saveLater{background:transparent;color:#15213B;border-color:rgba(21,33,59,.45)}
 .card.flash{box-shadow:0 0 0 3px var(--back-2);transition:box-shadow .3s}
 .backlink{align-self:flex-start;background:none;border:0;color:var(--back-2);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0;margin-bottom:-6px}
 .linkbtn{background:none;border:0;color:var(--bad);font-weight:600;cursor:pointer;padding:8px 0;text-align:left}
@@ -468,6 +473,7 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
     <div class="card" id="saveCard" hidden>
       <b id="saveTitle">Save your scores</b>
       <p class="small muted">You're playing as a guest, so your scores live only in this browser. Create a free account to keep them if you change phone or clear your browser. It also gets you on the leaderboard and into groups.</p>
+      <p class="small muted" id="saveSafari" hidden>On Safari, a week away can lose them too: Safari clears a website's saved data after 7 days of browsing without a visit.</p>
       <div class="field"><button class="btn" id="saveBtn">Create an account</button><button class="btn ghost" id="saveLater">Not now</button></div>
     </div>
     <textarea class="sharebox" id="shareText" rows="8" readonly aria-label="Your result to share"></textarea>
