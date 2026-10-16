@@ -12,13 +12,14 @@ initializeApp();
 const h = makeHandlers({ db: getFirestore(), FieldValue, Timestamp, auth: getAuth(), HttpsError });
 const call = fn => onCall({ cors: true }, async req => {
   if (!req.auth) throw new HttpsError("unauthenticated", "Please sign in first.");
-  return fn(req.data || {}, req.auth.uid);
+  return fn(req.data || {}, req.auth.uid, req.auth.token);   // the token says whether they're a guest
 });
 export const startHand = call(h.startHand);
 export const startRound = call(h.startRound);
 export const submitRound = call(h.submitRound);
 export const setName = call(h.setName);
 export const getMe = call(h.getMe);
+export const claimScores = call(h.claimScores);
 export const createGroup = call(h.createGroup);
 export const joinGroup = call(h.joinGroup);
 export const leaveGroup = call(h.leaveGroup);

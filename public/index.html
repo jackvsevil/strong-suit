@@ -472,7 +472,12 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
   <!-- LEADERBOARD -->
   <section class="screen stack" id="board" hidden>
     <button class="backlink" data-groups aria-label="Back to your groups">‹ Groups</button>
-    <div class="stack" style="gap:4px"><h2>Everyone</h2><p class="muted small">The top 20 players for each hand.</p></div>
+    <div class="stack" style="gap:4px"><h2>Everyone</h2><p class="muted small">The top 20 for each hand. Only players with an account are listed.</p></div>
+    <div class="card" id="boardGuest" hidden>
+      <b>Get on the leaderboard</b>
+      <p class="small muted">You're playing as a guest, so your scores don't appear here. Create a free account and the hands you've already played are added too.</p>
+      <button class="btn" id="boardGuestBtn">Create an account</button>
+    </div>
     <div class="stepper" id="bStep"><button class="iconbtn" id="bPrev" aria-label="Earlier hand">‹</button><div><b id="bWhen"></b><small id="bWhenSub"></small></div><button class="iconbtn" id="bNext" aria-label="Later hand">›</button></div>
     <p class="small muted" id="boardNote"></p>
     <div class="list" id="boardList"></div>
@@ -482,9 +487,14 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
   <section class="screen stack" id="groups" hidden>
     <button class="backlink" data-home aria-label="Back to home">‹ Home</button>
     <div class="stack" style="gap:4px"><h2>Groups</h2><p class="muted small">Play against friends. Free groups hold up to 10 people.</p></div>
-    <button class="row tap gopen" id="everyoneRow"><div class="m"><span class="sym" aria-hidden="true">🌐</span></div><div class="t">Everyone<small>Today's top 20 from all players</small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div></button>
+    <button class="row tap gopen" id="everyoneRow"><div class="m"><span class="sym" aria-hidden="true">🌐</span></div><div class="t">Everyone<small>Today's top 20 players</small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div></button>
     <div class="list" id="groupList"></div>
-    <div class="card">
+    <div class="card" id="guestGroups" hidden>
+      <b>Create an account to join groups</b>
+      <p class="small muted">It's free, and your scores so far come with you. Then you can join a friend's group or start your own.</p>
+      <button class="btn" id="guestGroupsBtn">Create an account</button>
+    </div>
+    <div class="card" id="joinCard">
       <b>Join with a code</b>
       <div class="field"><input id="joinCode" maxlength="6" placeholder="ABC123" autocapitalize="characters" autocomplete="off" aria-label="Group code"><button class="btn" id="joinBtn">Join</button></div>
     </div>
@@ -536,7 +546,8 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
     <div class="lockcard"><div><b>More with ♠︎ Plus</b><p class="small muted">Trends over time, category deep dives and groups for more than 10 people.</p></div><span class="pill">Coming soon</span></div>
     <div class="card" id="signinBox">
       <b>Create an account</b>
-      <p class="small muted">You're playing as a guest. Sign in to keep your scores and groups if you change phone or clear your browser. See our <a href="/privacy">privacy notice</a>.</p>
+      <p class="small muted">You're playing as a guest. Create an account to join groups, appear on the Everyone leaderboard, and keep your scores if you change phone or clear your browser. Your scores so far come with you. See our <a href="/privacy">privacy notice</a>.</p>
+      <p class="small" id="pendingJoin" hidden></p>
       <button class="btn" id="googleBtn">Continue with Google</button>
       <div class="or">or get a sign-in link</div>
       <div class="field"><input id="emailIn" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email address"><button class="btn" id="emailBtn">Send</button></div>

@@ -496,9 +496,13 @@ function renderResults() {
        { label: "Share result", onClick: () => share(text) }]);
   show("results");
   api.leaderboard(p.hand).then(lb => {
-    const s = lb.summary; if (!s || !s.players || s.players < 2) return;
+    const guest = api.account().anonymous;   // guests aren't on the leaderboard, so they're compared with everyone on it
+    const s = lb.summary, others = s ? s.players - (guest ? 0 : 1) : 0;
+    if (!s || others < 1) return;
     const below = Object.entries(s.tally || {}).reduce((n, [sc, c]) => n + (+sc < p.score ? c : 0), 0);
-    $("percentile").innerHTML = "You beat <b>" + Math.round((below / (s.players - 1)) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
+    $("percentile").innerHTML = guest
+      ? "You'd beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players on today's leaderboard. Average " + Math.round(s.totalScore / s.players) + ". Create an account to join them."
+      : "You beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
     $("percentile").hidden = false;
   }).catch(() => {});
 }
@@ -529,6 +533,9 @@ async function renderBoard(n = S.n) {
   $("bWhenSub").textContent = fmtDay(dateOf(S.config.launchDate, n)) + (today ? " · today" : "");
   $("bPrev").disabled = n <= 1; $("bNext").disabled = today;
   $("bPrev").onclick = () => renderBoard(n - 1); $("bNext").onclick = () => renderBoard(n + 1);
+  const guest = api.account().anonymous;
+  $("boardGuest").hidden = !guest;
+  $("boardGuestBtn").onclick = () => toSignin();
   try {
     const myUid = api.account().uid;
     let note = "";
@@ -540,7 +547,7 @@ async function renderBoard(n = S.n) {
     if (lb.mine && s) {
       note = "You're " + ordinal(lb.mineRank) + " of " + s.players.toLocaleString("en-GB") + when + ".";
       if (!rows.find(r => r.uid === myUid)) rows = rows.concat({ ...lb.mine, uid: myUid, rank: lb.mineRank });
-    } else if (s && s.players) note = s.players.toLocaleString("en-GB") + (s.players === 1 ? " player" : " players") + (today ? " so far today. Play to get on the board." : ".");
+    } else if (s && s.players) note = s.players.toLocaleString("en-GB") + (s.players === 1 ? " player" : " players") + (today ? " so far today." + (guest ? "" : " Play to get on the board.") : ".");
     else note = today ? "Nobody's played yet today." : "";
     list.innerHTML = "";
     rows.forEach((r, i) => {
@@ -610,8 +617,11 @@ async function renderGroups() {
   const list = $("groupList"); list.innerHTML = '<p class="muted small">Loading…</p>';
   symbolPicker($("newSym"), newSymbol, id => (newSymbol = id));
   $("startGroup").open = false;   // folded until they want it
+  const guest = api.account().anonymous;   // guests sign up before joining or starting a group
+  $("guestGroups").hidden = !guest;
+  $("joinCard").hidden = $("startGroup").hidden = guest;
   const groups = await api.groups().catch(e => (toast(e.message), []));
-  list.innerHTML = groups.length ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
+  list.innerHTML = groups.length || guest ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
   groups.forEach(g => {
     const d = document.createElement("button"); d.className = "row tap gopen";
     d.innerHTML = '<div class="m">' + symHtml(g.symbol) + '</div><div class="t"><small></small></div><div class="s"><span class="chev" aria-hidden="true">›</span></div>';
@@ -906,6 +916,7 @@ function subjectsHtml(m, per) {
   return html;
 }
 async function createGroup() {
+  if (api.account().anonymous) return toSignin();
   const name = $("newGroup").value.trim();
   if (name.length < 2) return toast("Give your group a name.");
   busy(true);
@@ -915,6 +926,7 @@ async function createGroup() {
 async function joinGroup(code) {
   code = (code || $("joinCode").value).trim();
   if (!code) return toast("Enter a group code.");
+  if (api.account().anonymous) return toSignin(code);
   busy(true);
   try { const g = await api.joinGroup(code); $("joinCode").value = ""; toast("You're in " + g.name); await refreshMe(); renderGroup(g.groupId); }
   catch (e) { toast(e.message); } finally { busy(false); }
@@ -929,9 +941,11 @@ async function renderProfile() {
   $("pName").textContent = me.name || "";
   if (acc.anonymous) {
     $("pAccount").innerHTML = 'Playing as a guest on this device. <button class="inlinelink" id="createAcc">Create an account</button>';
-    $("createAcc").onclick = () => { $("signinBox").scrollIntoView({ behavior: "smooth", block: "center" }); $("signinBox").classList.add("flash"); setTimeout(() => $("signinBox").classList.remove("flash"), 1200); };
+    $("createAcc").onclick = flashSignin;
   } else $("pAccount").textContent = "Signed in" + (acc.email ? " as " + acc.email : "");
   $("signinBox").hidden = !acc.anonymous;
+  $("pendingJoin").hidden = !(acc.anonymous && pendingJoin);
+  if (pendingJoin) $("pendingJoin").textContent = "Once you're signed in, you'll join the group with code " + pendingJoin.toUpperCase() + ".";
   $("signedInBox").hidden = acc.anonymous;
   const played = st.played || 0;
   const cells = [
@@ -969,12 +983,22 @@ async function editName() {
   if (!name) return;
   busy(true); try { await api.setName(name); toast("Saved"); } catch (e) { toast(e.message); } finally { busy(false); renderProfile(); }
 }
+/* Guests create an account before joining groups. `join` is a group code to join straight after signing up. */
+let pendingJoin = null;
+async function toSignin(join) {
+  if (join) pendingJoin = join;
+  await renderProfile();
+  flashSignin();
+}
+function flashSignin() { $("signinBox").scrollIntoView({ behavior: "smooth", block: "center" }); $("signinBox").classList.add("flash"); setTimeout(() => $("signinBox").classList.remove("flash"), 1200); }
 async function signInGoogle() {
   try {
     const r = await api.signInGoogle();
     if (r.cancelled) return;
     toast(r.switched ? "Signed in to your existing account." : "Signed in. Your progress is saved.");
-    await refreshMe(); renderProfile();
+    await refreshMe();
+    if (pendingJoin && !api.account().anonymous) { const c = pendingJoin; pendingJoin = null; return joinGroup(c); }
+    renderProfile();
   } catch (e) { toast(e.message, 4000); }
 }
 async function signInEmail() {
@@ -982,9 +1006,13 @@ async function signInEmail() {
   if (!/^\S+@\S+\.\S+$/.test(email)) return toast("Enter your email address.");
   busy(true);
   try {
-    await api.sendEmailLink(email); $("emailIn").value = "";
+    await api.sendEmailLink(email, pendingJoin); $("emailIn").value = "";
     // demo mode never sends an email: it pretends the link was clicked, so say so rather than promise an email
-    if (api.demo) { toast("Demo mode: no email is sent. You're signed in as " + email + " to try it out.", 5000); renderProfile(); }
+    if (api.demo) {
+      toast("Demo mode: no email is sent. You're signed in as " + email + " to try it out.", 5000);
+      if (pendingJoin) { const c = pendingJoin; pendingJoin = null; return joinGroup(c); }
+      renderProfile();
+    }
     else toast("Check your email for a sign-in link.", 4000);
   }
   catch (e) { toast(e.message, 4000); } finally { busy(false); }
@@ -1014,6 +1042,7 @@ function wire() {
   $("homeLink").onclick = e => { e.preventDefault(); if (!document.body.classList.contains("inround")) renderHome(); };
   document.querySelectorAll(".nav button[data-go]").forEach(b => (b.onclick = () => ({ hands: renderHands, groups: renderGroups, profile: renderProfile })[b.dataset.go]()));
   $("everyoneRow").onclick = () => renderBoard();
+  $("guestGroupsBtn").onclick = () => toSignin();
   $("createBtn").onclick = createGroup; $("joinBtn").onclick = () => joinGroup();
   $("nameBtn").onclick = editName; $("googleBtn").onclick = signInGoogle; $("emailBtn").onclick = signInEmail;
   $("signOutBtn").onclick = signOut; $("deleteBtn").onclick = deleteAccount; $("practiceBtn").onclick = startTutorial;
@@ -1032,7 +1061,11 @@ async function boot() {
   const join = new URLSearchParams(location.search).get("join");
   if (join) {
     history.replaceState(null, "", location.pathname + (api.demo ? "?demo=1" : ""));
-    if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". Members will see your name, scores and subject stats, and, once they've played a hand, your answers.", ok: "Join" })) await joinGroup(join);
+    const guest = api.account().anonymous;
+    const what = "Members will see your name, scores and subject stats, and, once they've played a hand, your answers.";
+    if (guest) {   // sign up first, then they're joined straight away (Google) or asked again when the email link brings them back
+      if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". Create a free account to join. It takes a moment, and any scores you have come with you. " + what, ok: "Create an account" })) await toSignin(join);
+    } else if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". " + what, ok: "Join" })) await joinGroup(join);
     return;
   }
   let seen = false; try { seen = localStorage.getItem("ss_seen_howto") === "1"; } catch (_) {}
