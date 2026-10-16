@@ -483,6 +483,7 @@ function renderResults() {
   $("bonusCard").hidden = !!p.bonus;
   $("bonusText").textContent = "Try " + skc.label + ", the category you skipped, to see if you were right to skip it. It won't change your score.";
   $("percentile").hidden = true;
+  $("saveCard").hidden = true;
   $("shareText").hidden = $("nextNote").hidden = G.tut;
   if (G.tut) {
     coach(p.bonus ? "That's the whole game. Ready for the real thing?"
@@ -495,6 +496,7 @@ function renderResults() {
   bar([S.from === "hands" ? { label: "Back", ghost: true, onClick: renderHands } : { label: "Home", ghost: true, onClick: renderHome },
        { label: "Share result", onClick: () => share(text) }]);
   show("results");
+  maybeSaveCard().catch(() => {});
   api.leaderboard(p.hand).then(lb => {
     const guest = api.account().anonymous;   // guests aren't on the leaderboard, so they're compared with everyone on it
     const s = lb.summary, others = s ? s.players - (guest ? 0 : 1) : 0;
@@ -505,6 +507,20 @@ function renderResults() {
       : "You beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
     $("percentile").hidden = false;
   }).catch(() => {});
+}
+/* From a guest's third finished hand: one card asking them to create an account before a cleared browser loses their history.
+   "Not now" hides it for a week. */
+const SAVE_LATER_KEY = "ss_save_nudge_until";
+async function maybeSaveCard() {
+  if (G.tut || !api.account().anonymous) return;
+  try { if (Date.now() < +localStorage.getItem(SAVE_LATER_KEY)) return; } catch (_) {}
+  const me = await refreshMe(), st = (me && me.stats) || {};   // the server has just counted this hand
+  if ((st.played || 0) < 3 || $("results").hidden || !api.account().anonymous) return;
+  const streak = st.streak && st.lastHand >= S.n - 1 ? st.streak : 0;
+  $("saveTitle").textContent = streak >= 2 ? "Save your " + streak + "-day streak" : "Save your " + st.played + " hands";
+  $("saveBtn").onclick = () => toSignin();
+  $("saveLater").onclick = () => { try { localStorage.setItem(SAVE_LATER_KEY, String(Date.now() + 7 * 86400000)); } catch (_) {} $("saveCard").hidden = true; };
+  $("saveCard").hidden = false;
 }
 function openReview(result) {
   fillReveal(result);

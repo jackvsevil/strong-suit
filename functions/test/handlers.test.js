@@ -13,6 +13,10 @@ function setup() {
   const auth = {
     deleteUser: async u => deleted.push(u),
     getUser: async u => ({ uid: u, providerData: guests.has(u) ? [] : [{ providerId: "google.com" }] }),
+    // two pages, so paging is exercised: 1 account and 1 guest, then 1 more account
+    listUsers: async (_, token) => token
+      ? { users: [{ uid: "c", providerData: [{ providerId: "password" }] }] }
+      : { users: [{ uid: "a", providerData: [{ providerId: "google.com" }] }, { uid: "g", providerData: [] }], pageToken: "next" },
   };
   const h = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth, now: clock });
   db.store.set("hands/1", {
@@ -249,6 +253,7 @@ test("admin stats: per-hand starts and finishes, per-round skips and per-pair re
   await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, "c");   // starts, never finishes
   const s = await h.adminStats();
   assert.equal(s.totals.players, 3);
+  assert.equal(s.totals.accounts, 2);
   assert.equal(s.newPlayers.length, 30);
   assert.equal(s.newPlayers.at(-1).n, 3, "all three created today");
   const h1 = s.hands.find(x => x.hand === 1);
