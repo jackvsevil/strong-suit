@@ -26,6 +26,7 @@ test("source: subdomains, search engines and unknown sites", () => {
   assert.equal(hostTag("l.instagram.com"), "instagram");
   assert.equal(hostTag("google.co.uk"), "google");
   assert.equal(hostTag("google.com"), "google");
+  assert.equal(cleanSource({ referrer: "android-app://com.google.android.googlequicksearchbox/https/www.google.com" }).tag, "google", "the Google app on Android");
   assert.equal(hostTag("someblog.com"), "someblog.com", "an unknown site is kept by name, not lost");
   assert.equal(cleanSource({ referrer: "https://someblog.com/post/1?utm=x" }).host, "someblog.com", "only the site name, never the path");
 });

@@ -26,6 +26,7 @@ const KNOWN = {
   "jackvsevil.github.io": "prototype",
   "bing.com": "bing",
   "duckduckgo.com": "duckduckgo",
+  "com.google.android.googlequicksearchbox": "google",   // the Google app on Android (android-app:// referrer)
 };
 // Our own sites and the sign-in pages: arriving from these says nothing about where someone came from.
 const IGNORE = ["strongsuitgame.com", "strong-suit.web.app", "strong-suit.firebaseapp.com", "accounts.google.com"];
