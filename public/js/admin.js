@@ -89,7 +89,7 @@ function render() {
   const today = open.at(-1);
   $("updated").textContent = "Updated " + new Date(d.at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }) + (d.launchDate ? " · launch " + fmtDate(d.launchDate) : "");
   $("tiles").innerHTML = [
-    ["Players (all time)", d.totals.players.toLocaleString("en-GB")],
+    ["Visitors (all time)", d.totals.players.toLocaleString("en-GB")],
     ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
     ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
     ["Groups", d.totals.groups],
