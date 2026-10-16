@@ -7,10 +7,10 @@ on:
       action:
         description: "What to do"
         type: choice
-        options: [find, rename-player, rename-group, remove-score]
+        options: [find, rename-player, rename-group, remove-score, hide-guest-scores]
         default: find
       target:
-        description: "find: a nickname, group name or code · rename-player / remove-score: player ID · rename-group: group code"
+        description: "find: a nickname, group name or code · rename-player / remove-score: player ID · rename-group: group code · hide-guest-scores: a hand number or all"
         required: true
       value:
         description: "rename: the new name (blank gives a neutral one) · remove-score: the hand number"

@@ -70,7 +70,8 @@ async function firebaseBackend(config, source) {
       else throw e;
     }
     try { localStorage.removeItem(EMAIL_KEY); } catch (_) {}
-    history.replaceState(null, "", location.pathname);
+    const join = new URLSearchParams(location.search).get("join");   // a guest who signed up to join a group
+    history.replaceState(null, "", location.pathname + (join ? "?join=" + encodeURIComponent(join) : ""));
     return { signedIn: email };
   }
 
@@ -99,8 +100,9 @@ async function firebaseBackend(config, source) {
         throw friendly(e);
       }
     },
-    async sendEmailLink(email) {
-      await A.sendSignInLinkToEmail(auth, email, { url: location.origin + "/", handleCodeInApp: true }).catch(e => { throw friendly(e); });
+    async sendEmailLink(email, join) {   // join: a group code to offer once they're back, signed in
+      const url = location.origin + "/" + (join ? "?join=" + encodeURIComponent(join) : "");
+      await A.sendSignInLinkToEmail(auth, email, { url, handleCodeInApp: true }).catch(e => { throw friendly(e); });
       try { localStorage.setItem(EMAIL_KEY, email); } catch (_) {}
     },
     async signOut() { await A.signOut(auth); await A.signInAnonymously(auth); },
@@ -114,6 +116,11 @@ async function firebaseBackend(config, source) {
     async getMe() {
       let me = await get(`players/${uid()}`);
       if (!me) { await call("getMe")({ source }); me = await get(`players/${uid()}`); }
+      // just signed up (or signed up before this existed): put the hands they played as a guest on the leaderboard
+      if (me && !me.listed && !auth.currentUser.isAnonymous) {
+        await call("claimScores")({}).catch(() => {});
+        me = (await get(`players/${uid()}`)) || me;
+      }
       return me;
     },
     startHand: (n, ranking) => call("startHand")({ hand: n, ranking }),
@@ -223,9 +230,10 @@ function demoBackend() {
   const entries = n => {
     const list = bots.map(b => ({ b, p: botPlay(b, n) })).filter(x => x.p).map(({ b, p }) => ({ uid: b.uid, name: b.name, score: p.score, time: p.time, aware: p.aware }));
     const p = st.plays[n];
-    if (p && p.status === "done") list.push({ uid: "me", name: st.me.name, score: p.score, time: p.time, aware: p.aware });
+    if (p && p.status === "done" && st.email) list.push({ uid: "me", name: st.me.name, score: p.score, time: p.time, aware: p.aware });   // guests aren't listed
     return list;
   };
+  const guestError = () => Object.assign(new Error("Create a free account to join groups. Your scores so far come with you."), { code: "failed-precondition" });
   const code = () => Array.from({ length: 6 }, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
   return {
     demo: true, linkNote: null,
@@ -309,6 +317,7 @@ function demoBackend() {
       return fams;
     },
     async createGroup(name, symbol) {
+      if (!st.email) throw guestError();
       const id = "g" + Date.now(); const c = code();
       st.groups[id] = { name, symbol: symbol || "club", code: c, memberCount: 3, cap: 10, ownerUid: "me", members: ["me", "bot1", "bot4"] };
       st.me.groupIds.push(id); save(); return { groupId: id, code: c };
@@ -318,6 +327,7 @@ function demoBackend() {
     async newGroupCode(id) { st.groups[id].code = code(); save(); return { code: st.groups[id].code }; },
     groupMembers: async id => st.groups[id].members.map(uid => ({ uid, name: nameOf(uid) })),
     async joinGroup(c) {
+      if (!st.email) throw guestError();
       const id = Object.keys(st.groups).find(k => st.groups[k].code === String(c).toUpperCase());
       if (!id) throw Object.assign(new Error("No group has that code."), { code: "not-found" });
       if (!st.me.groupIds.includes(id)) { st.me.groupIds.push(id); st.groups[id].members.push("me"); st.groups[id].memberCount++; }

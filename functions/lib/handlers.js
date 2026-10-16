@@ -22,6 +22,18 @@ function newPlayer(uid) {
   return { name: G.defaultName(), createdAt: FieldValue.serverTimestamp(), plus: false, groupIds: [], stats: {} };
 }
 
+// Guests (anonymous sign-in) can play, but can't join or start groups and aren't on the Everyone leaderboard.
+// The ID token says how the player signed in. If it still says anonymous (or there's no token), ask
+// Firebase Auth, in case they've only just created an account. If that lookup fails, treat them as a guest:
+// claimScores puts their scores on the board once they're signed in.
+async function isGuest(uid, token) {
+  const via = token && token.firebase && token.firebase.sign_in_provider;
+  if (via && via !== "anonymous") return false;
+  try { return !((await auth.getUser(uid)).providerData || []).length; }
+  catch (e) { console.error("isGuest", uid, e); return true; }
+}
+const GUEST_GROUPS = "Create a free account to join groups. Your scores so far come with you.";
+
 /* ---------- 1. Lock in the ranking ---------- */
 const startHand = (async ({ hand, ranking }, uid) => {
   needHand(hand);
@@ -82,7 +94,7 @@ const startMs = c => c.startsAt ? c.startsAt.toMillis() : c.deadline.toMillis() 
 const payload = c => { const { deadline, ...rest } = c; return { ...rest, startsAt: startMs(c), now: now(), capSeconds: G.ROUND_CAP_SECONDS }; };
 
 /* ---------- 3. Check a round; after round four, score the hand ---------- */
-const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
+const submitRound = (async ({ hand, key, picks, timeMs }, uid, token) => {
   needHand(hand);
   if (!G.checkPicks(picks)) fail("invalid-argument", "Those answers don't look right.");
   const r = refs(uid, hand);
@@ -154,12 +166,16 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
   });
 
   // Leaderboards and category stats sit outside the transaction: they're tallies, not the record.
+  // Guests' scores count towards the stats but stay off the Everyone leaderboard (and its tally) until they sign up.
+  const listed = out.final ? !(await isGuest(uid, token)) : false;
   const b = db.batch();
   const inc = FieldValue.increment;
   if (out.final) {
     const f = out.final;
-    b.set(db.doc(`leaderboards/${hand}`), { players: inc(1), totalScore: inc(f.score), tally: { [f.score]: inc(1) } }, { merge: true });
-    b.set(db.doc(`leaderboards/${hand}/entries/${uid}`), { name: f.name, score: f.score, time: f.time, aware: f.aware, at: FieldValue.serverTimestamp() });
+    if (listed) {
+      b.set(db.doc(`leaderboards/${hand}`), { players: inc(1), totalScore: inc(f.score), tally: { [f.score]: inc(1) } }, { merge: true });
+      b.set(db.doc(`leaderboards/${hand}/entries/${uid}`), { name: f.name, score: f.score, time: f.time, aware: f.aware, at: FieldValue.serverTimestamp() });
+    }
     [0, 1, 2].map(k => out.rounds[k]).concat(out.result).forEach(x =>
       b.set(db.doc(`categoryStats/${x.categoryId}`), { played: inc(1), correct: inc(x.correct) }, { merge: true }));
     b.set(db.doc(`categoryStats/${out.skipped.categoryId}`), { skipped: inc(1) }, { merge: true });
@@ -180,7 +196,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid) => {
   }
   await b.commit().catch(e => console.error("tally update failed", hand, uid, e));
   const res = { result: out.result };
-  if (out.final) res.final = { score: out.final.score, best: out.final.best, aware: out.final.aware, time: out.final.time };
+  if (out.final) res.final = { score: out.final.score, best: out.final.best, aware: out.final.aware, time: out.final.time, listed };
   return res;
 });
 
@@ -214,7 +230,8 @@ const getMe = (async ({ source } = {}, uid) => {
 });
 
 /* ---------- Groups ---------- */
-const createGroup = (async ({ name, symbol }, uid) => {
+const createGroup = (async ({ name, symbol }, uid, token) => {
+  if (await isGuest(uid, token)) fail("failed-precondition", GUEST_GROUPS);
   const n = G.cleanGroupName(name);
   const sym = G.cleanSymbol(symbol) || "club";
   if (!n) fail("invalid-argument", "Group names are 2–30 characters.");
@@ -239,9 +256,10 @@ const createGroup = (async ({ name, symbol }, uid) => {
   fail("unavailable", "Couldn't make a group code. Try again.");
 });
 
-const joinGroup = (async ({ code }, uid) => {
+const joinGroup = (async ({ code }, uid, token) => {
   const c = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (c.length !== 6) fail("invalid-argument", "Group codes are six characters.");
+  if (await isGuest(uid, token)) fail("failed-precondition", GUEST_GROUPS);
   const cref = db.doc(`groupCodes/${c}`);
   const pref = db.doc(`players/${uid}`);
   return db.runTransaction(async tx => {
@@ -479,6 +497,33 @@ function sourceTable(players, hands) {
   return Object.values(rows).sort((a, b) => b.players - a.players || a.tag.localeCompare(b.tag));
 }
 
+/* ---------- A guest has just created an account: put the hands they've already finished on the leaderboard ---------- */
+// The page calls this once signed in until the profile says `listed`. Safe to repeat: a hand that already has an
+// entry is left alone, and scores taken off a leaderboard by moderation stay off.
+const claimScores = (async (_, uid, token) => {
+  if (await isGuest(uid, token)) fail("failed-precondition", "Create an account first.");
+  const pref = db.doc(`players/${uid}`);
+  const p = await pref.get();
+  if (!p.exists || p.get("listed")) return { added: 0 };
+  const inc = FieldValue.increment;
+  const plays = await pref.collection("plays").where("status", "==", "done").get();
+  let added = 0;
+  for (const d of plays.docs) {
+    const pl = d.data(), hand = Number(d.id);
+    if (!Number.isInteger(hand) || pl.removedFromLeaderboard || !Number.isFinite(pl.score)) continue;
+    const eref = db.doc(`leaderboards/${hand}/entries/${uid}`);
+    const fresh = await db.runTransaction(async tx => {
+      if ((await tx.get(eref)).exists) return false;
+      tx.set(eref, { name: p.get("name"), score: pl.score, time: pl.time ?? G.ROUND_CAP_SECONDS * 4000, aware: pl.aware ?? 0, at: pl.finishedAt || FieldValue.serverTimestamp() });
+      tx.set(db.doc(`leaderboards/${hand}`), { players: inc(1), totalScore: inc(pl.score), tally: { [pl.score]: inc(1) } }, { merge: true });
+      return true;
+    });
+    if (fresh) added++;
+  }
+  await pref.set({ listed: true }, { merge: true });
+  return { added };
+});
+
 /* ---------- Delete everything about a player ---------- */
 const deleteAccount = (async (_, uid) => {
   const pref = db.doc(`players/${uid}`);
@@ -495,5 +540,5 @@ const deleteAccount = (async (_, uid) => {
   return { ok: true };
 });
 
-  return { startHand, startRound, submitRound, setName, getMe, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, adminStats, deleteAccount };
+  return { startHand, startRound, submitRound, setName, getMe, claimScores, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, adminStats, deleteAccount };
 }

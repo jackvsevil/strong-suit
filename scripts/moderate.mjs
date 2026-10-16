@@ -5,9 +5,13 @@
 //   rename-player TARGET = player ID (from find). VALUE = new name, or blank for a fresh "Player 1234".
 //   rename-group  TARGET = group code. VALUE = new name, or blank for "Group <code>".
 //   remove-score  TARGET = player ID, VALUE = hand number. Takes that score off the leaderboards (the play itself stays).
+//   hide-guest-scores  TARGET = a hand number, or "all". Takes guests' scores off the Everyone leaderboard, which
+//                 only lists players with an account (from 16 Oct 2026). Their plays stay, and their scores go back
+//                 on the board if they sign up.
 // DRY_RUN=1 reports what would change without changing it.
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { cleanName, cleanGroupName, defaultName } from "../functions/lib/game.js";
 
 const ACTION = (process.env.ACTION || "").trim();
@@ -86,7 +90,38 @@ async function removeScore() {
   await b.commit();
 }
 
-const actions = { find, "rename-player": renamePlayer, "rename-group": renameGroup, "remove-score": removeScore };
+async function hideGuestScores() {
+  const hands = TARGET.toLowerCase() === "all"
+    ? (await db.collection("leaderboards").select().get()).docs.map(d => Number(d.id)).filter(Number.isInteger).sort((a, b) => a - b)
+    : [Number(TARGET)];
+  if (!hands.length || !hands.every(n => Number.isInteger(n) && n >= 1)) stop('Put a hand number, or "all", in the target box.');
+  const auth = getAuth();
+  let total = 0;
+  for (const hand of hands) {
+    const entries = (await db.collection(`leaderboards/${hand}/entries`).get()).docs;
+    const guests = [];
+    for (let i = 0; i < entries.length; i += 100) {   // Auth looks up at most 100 accounts at a time
+      const chunk = entries.slice(i, i + 100);
+      const { users } = await auth.getUsers(chunk.map(d => ({ uid: d.id })));
+      const anon = new Set(users.filter(u => !u.providerData.length).map(u => u.uid));
+      guests.push(...chunk.filter(d => anon.has(d.id)));
+    }
+    say(`Hand #${hand}: ${guests.length} guest score${guests.length === 1 ? "" : "s"} of ${entries.length} on the board` + (guests.length ? ` (${guests.map(d => `"${d.get("name")}" ${d.get("score")}`).join(", ")})` : "") + ".");
+    total += guests.length;
+    if (DRY || !guests.length) continue;
+    for (let i = 0; i < guests.length; i += 200) {
+      const b = db.batch(), chunk = guests.slice(i, i + 200), counts = {};
+      let sum = 0;
+      chunk.forEach(d => { b.delete(d.ref); sum += d.get("score"); counts[d.get("score")] = (counts[d.get("score")] || 0) + 1; });
+      const tally = Object.fromEntries(Object.entries(counts).map(([sc, n]) => [sc, FieldValue.increment(-n)]));
+      b.set(db.doc(`leaderboards/${hand}`), { players: FieldValue.increment(-chunk.length), totalScore: FieldValue.increment(-sum), tally }, { merge: true });
+      await b.commit();
+    }
+  }
+  say(`${total} guest score${total === 1 ? "" : "s"} ${DRY ? "would be taken" : "taken"} off in all.`);
+}
+
+const actions = { find, "rename-player": renamePlayer, "rename-group": renameGroup, "remove-score": removeScore, "hide-guest-scores": hideGuestScores };
 if (!actions[ACTION]) stop("Unknown action: " + ACTION);
 await actions[ACTION]();
 const head = (DRY && ACTION !== "find" ? "DRY RUN, nothing changed. " : "") + (ACTION === "find" ? "Found:" : "Done:");

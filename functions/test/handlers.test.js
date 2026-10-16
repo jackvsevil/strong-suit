@@ -9,7 +9,12 @@ function setup() {
   const clock = () => t;
   const db = makeDb(clock);
   const deleted = [];
-  const h = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth: { deleteUser: async u => deleted.push(u) }, now: clock });
+  const guests = new Set();   // players still on anonymous sign-in; everyone else has signed up
+  const auth = {
+    deleteUser: async u => deleted.push(u),
+    getUser: async u => ({ uid: u, providerData: guests.has(u) ? [] : [{ providerId: "google.com" }] }),
+  };
+  const h = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth, now: clock });
   db.store.set("hands/1", {
     number: 1, opensAt: Timestamp.fromMillis(t - 3600e3),
     categories: FAMS.map((f, slot) => ({ slot, categoryId: "CAT-" + slot, themeId: "", label: "Cat " + slot, family: f })),
@@ -21,7 +26,7 @@ function setup() {
       fact: "Fact " + slot, src: "https://example.com/" + slot,
     })),
   });
-  return { db, h, tick: ms => (t += ms), deleted };
+  return { db, h, tick: ms => (t += ms), deleted, guests };
 }
 // play a dealt round getting `n` right: pick the true answer's shuffled position for the first n prompts
 const picksFor = (dealt, n) => dealt.prompts.map((p, i) => (i < n ? dealt.answers.indexOf(p.replace("P", "A")) : null));
@@ -53,7 +58,7 @@ test("a full hand: ranking, four rounds, scoring, stats, bonus", async () => {
     assert.equal(r.result.correct, want[k]);
     assert.equal(r.result.review.fact, "Fact " + d.slot);
     if (k < 3) assert.equal(r.final, undefined);
-    else assert.deepEqual(r.final, { score: 6 + 6 + 15 + 8, best: 2 + 6 + 15 + 24, aware: Math.round(35 / 47 * 100), time: 68000 });
+    else assert.deepEqual(r.final, { score: 6 + 6 + 15 + 8, best: 2 + 6 + 15 + 24, aware: Math.round(35 / 47 * 100), time: 68000, listed: true });
   }
   await code(h.startRound({ hand: 1 }, "u1"), "failed-precondition");
   const play = db.store.get("players/u1/plays/1");
@@ -311,4 +316,63 @@ test("Joker rounds play and score as normal but are left out of subject stats", 
   assert.equal(fams.Joker, undefined);
   assert.equal(fams["Film & TV"].rounds, 1);
   assert.equal(db.store.get("stats/families").families.Joker, undefined);
+});
+
+test("guests play and count towards stats, but can't join groups or appear on the leaderboard until they sign up", async () => {
+  const { db, h, guests } = setup();
+  guests.add("g");
+  const anon = { firebase: { sign_in_provider: "anonymous" } };
+  const owner = await h.createGroup({ name: "Pub quiz" }, "a");
+  await code(h.joinGroup({ code: owner.code }, "g", anon), "failed-precondition");
+  await code(h.createGroup({ name: "Guest group" }, "g", anon), "failed-precondition");
+  await code(h.joinGroup({ code: "nope" }, "g", anon), "invalid-argument");   // a bad code still says so
+  assert.equal(db.store.get(`groups/${owner.groupId}`).memberCount, 1);
+
+  await playHand(h, "g", [0, 1, 2, 3, 4], [6, 6, 6, 6]);
+  await playHand(h, "a", [0, 1, 2, 3, 4], [3, 3, 3, 3]);
+  assert.equal(db.store.get("players/g/plays/1").score, 60);
+  assert.equal(db.store.get("players/g").stats.played, 1);           // the guest's own stats still count
+  assert.equal(db.store.get("roundStats/1").finished, 2);             // and so do the admin page's
+  assert.equal(db.store.get("leaderboards/1/entries/g"), undefined);  // but not the leaderboard
+  assert.equal(db.store.get("leaderboards/1").players, 1);
+  assert.deepEqual(db.store.get("leaderboards/1").tally, { 30: 1 });
+  await code(h.claimScores({}, "g", anon), "failed-precondition");
+
+  // they sign up (same ID, as the anonymous account is upgraded): their past hands join the board, once
+  guests.delete("g");
+  const google = { firebase: { sign_in_provider: "google.com" } };
+  assert.deepEqual(await h.claimScores({}, "g", google), { added: 1 });
+  assert.equal(db.store.get("leaderboards/1/entries/g").score, 60);
+  assert.equal(db.store.get("leaderboards/1/entries/g").time, db.store.get("players/g/plays/1").time);
+  assert.equal(db.store.get("leaderboards/1").players, 2);
+  assert.deepEqual(db.store.get("leaderboards/1").tally, { 30: 1, 60: 1 });
+  assert.equal(db.store.get("players/g").listed, true);
+  assert.deepEqual(await h.claimScores({}, "g", google), { added: 0 });
+  assert.equal(db.store.get("leaderboards/1").players, 2);
+  await h.joinGroup({ code: owner.code }, "g", google);
+  assert.equal(db.store.get(`groups/${owner.groupId}`).memberCount, 2);
+});
+
+test("claiming scores is safe to repeat and leaves moderated scores off", async () => {
+  const { db, h, guests } = setup();
+  guests.add("g");
+  await playHand(h, "g", [0, 1, 2, 3, 4], [6, 6, 6, 6]);
+  db.store.get("players/g/plays/1").removedFromLeaderboard = true;
+  guests.delete("g");
+  assert.deepEqual(await h.claimScores({}, "g"), { added: 0 });   // no token: Auth is asked instead
+  assert.equal(db.store.get("leaderboards/1/entries/g"), undefined);
+  // a player who signed up before playing goes straight on the board, and claiming adds nothing twice
+  await playHand(h, "s", [0, 1, 2, 3, 4], [6, 6, 6, 6]);
+  assert.equal(db.store.get("leaderboards/1/entries/s").score, 60);
+  assert.deepEqual(await h.claimScores({}, "s"), { added: 0 });
+  assert.equal(db.store.get("leaderboards/1").players, 1);
+});
+
+test("if Auth can't be reached, an anonymous token is treated as a guest", async () => {
+  const { db, h } = setup();
+  const h2 = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth: { getUser: async () => { throw new Error("down"); } }, now: () => Date.UTC(2026, 10, 1, 12) });
+  const g = await h.createGroup({ name: "Pub quiz" }, "a");
+  await code(h2.joinGroup({ code: g.code }, "x", { firebase: { sign_in_provider: "anonymous" } }), "failed-precondition");
+  await h2.joinGroup({ code: g.code }, "y", { firebase: { sign_in_provider: "password" } });   // email link: no lookup needed
+  assert.equal(db.store.get(`groups/${g.groupId}`).memberCount, 2);
 });
