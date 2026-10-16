@@ -5,12 +5,26 @@ import { DAYS, toHand, WILDCARD } from "./content.js";
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0/";
 const EMAIL_KEY = "ss_signin_email";
 
+// Where this visit came from, read before anything rewrites the address. The server keeps it only
+// when it makes a new profile (first touch wins), and keeps just the tag and the referring site's name.
+function visitSource() {
+  const params = new URLSearchParams(location.search);
+  let ref = params.get("ref") || (params.has("join") ? "invite" : "");
+  if (params.has("ref")) {   // drop the tag from the address bar, so a shared link doesn't pass it on
+    params.delete("ref");
+    const q = params.toString();
+    try { history.replaceState(history.state, "", location.pathname + (q ? "?" + q : "") + location.hash); } catch (_) {}
+  }
+  return { ref: ref.slice(0, 32), referrer: (document.referrer || "").slice(0, 2000) };
+}
+
 export async function createBackend() {
+  const source = visitSource();
   const params = new URLSearchParams(location.search);
   if (!params.has("demo")) {
     let config = null;
     try { const r = await fetch("/__/firebase/init.json", { cache: "no-store" }); if (r.ok) config = await r.json(); } catch (_) {}
-    if (config) return firebaseBackend(config);
+    if (config) return firebaseBackend(config, source);
   }
   return demoBackend();
 }
@@ -23,7 +37,7 @@ function friendly(e) {
   return Object.assign(new Error(msg || "Something went wrong."), { code });
 }
 
-async function firebaseBackend(config) {
+async function firebaseBackend(config, source) {
   const [{ initializeApp }, A, F, Fn] = await Promise.all([
     import(SDK + "firebase-app.js"), import(SDK + "firebase-auth.js"),
     import(SDK + "firebase-firestore.js"), import(SDK + "firebase-functions.js"),
@@ -99,7 +113,7 @@ async function firebaseBackend(config) {
     getPlay: n => get(`players/${uid()}/plays/${n}`),
     async getMe() {
       let me = await get(`players/${uid()}`);
-      if (!me) { await call("getMe")({}); me = await get(`players/${uid()}`); }
+      if (!me) { await call("getMe")({ source }); me = await get(`players/${uid()}`); }
       return me;
     },
     startHand: (n, ranking) => call("startHand")({ hand: n, ranking }),

@@ -2,6 +2,7 @@
 import * as G from "./game.js";
 import { createHash } from "node:crypto";
 import { allowedName } from "./names.js";
+import { cleanSource } from "./sources.js";
 
 export function makeHandlers({ db, FieldValue, Timestamp, auth, HttpsError, now = () => Date.now() }) {
 const LEAD_SECONDS = 3;   // the 3-2-1 countdown before the timer starts
@@ -201,12 +202,13 @@ const setName = (async ({ name }, uid) => {
   return { name: n };
 });
 
-const getMe = (async (_, uid) => {
+// The page calls this on every load; the first call makes the profile and records where the player came from.
+const getMe = (async ({ source } = {}, uid) => {
   const pref = db.doc(`players/${uid}`);
   return db.runTransaction(async tx => {
     const p = await tx.get(pref);
-    if (p.exists) return { created: false };
-    tx.set(pref, newPlayer(uid));
+    if (p.exists) return { created: false };   // first touch wins: an existing source is never overwritten
+    tx.set(pref, { ...newPlayer(uid), source: cleanSource(source) });
     return { created: true };
   });
 });
@@ -409,7 +411,7 @@ const groupMonth = (async ({ groupId, month }, uid) => {
 const adminStats = async () => {
   const DAY = 86400000, today = Math.floor(now() / DAY) * DAY;
   const count = q => q.count().get().then(r => r.data().count);
-  const [cfg, hands, keys, rstats, boards, fams, players, groups, newByDay] = await Promise.all([
+  const [cfg, hands, keys, rstats, boards, fams, players, groups, newByDay, recent] = await Promise.all([
     db.doc("config/app").get(),
     db.collection("hands").get(),
     db.collection("handKeys").get(),
@@ -423,6 +425,7 @@ const adminStats = async () => {
       return count(db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(from)).where("createdAt", "<", Timestamp.fromMillis(from + DAY)))
         .then(n => ({ date: new Date(from).toISOString().slice(0, 10), n }));
     })),
+    db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(today - 29 * DAY)).get(),   // for the sources table
   ]);
   const byId = snap => Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
   const K = byId(keys), R = byId(rstats), L = byId(boards);
@@ -446,10 +449,35 @@ const adminStats = async () => {
   }).sort((a, b) => a.hand - b.hand);
   return {
     launchDate: cfg.exists ? cfg.get("launchDate") : null, at: now(),
-    totals: { players, groups }, newPlayers: newByDay,
+    totals: { players, groups }, newPlayers: newByDay, sources: sourceTable(recent.docs, hands.docs),
     families: (fams.exists && fams.get("families")) || {}, hands: out,
   };
 };
+
+// New players in the last 30 days by where they came from, and whether they stuck around.
+// "A week on" counts players who finished a hand at least 7 days after the one open when they arrived,
+// out of those who arrived at least 7 days ago. Profiles from before tracking began show as "untracked".
+function sourceTable(players, hands) {
+  const DAY = 86400000, handOn = {};
+  hands.forEach(d => { const h = d.data(); if (h.date) handOn[h.date] = Number(d.id); });
+  const first = Math.min(...Object.values(handOn), Infinity);
+  const rows = {};
+  for (const d of players) {
+    const p = d.data(), src = p.source || {}, st = p.stats || {};
+    const tag = typeof src.tag === "string" ? src.tag : "untracked";
+    const r = (rows[tag] ||= { tag, via: src.via || null, players: 0, played: 0, returned: 0, weekEligible: 0, weekOn: 0 });
+    r.players++;
+    if ((st.played || 0) >= 1) r.played++;
+    if ((st.played || 0) >= 2) r.returned++;
+    const at = p.createdAt && p.createdAt.toMillis ? p.createdAt.toMillis() : null;
+    if (at !== null && at <= now() - 7 * DAY) {
+      r.weekEligible++;
+      const arrived = handOn[new Date(at).toISOString().slice(0, 10)] ?? (Number.isFinite(first) ? first : null);
+      if (arrived !== null && (st.lastHand || 0) >= arrived + 7) r.weekOn++;
+    }
+  }
+  return Object.values(rows).sort((a, b) => b.players - a.players || a.tag.localeCompare(b.tag));
+}
 
 /* ---------- Delete everything about a player ---------- */
 const deleteAccount = (async (_, uid) => {

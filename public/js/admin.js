@@ -89,7 +89,7 @@ function render() {
   const today = open.at(-1);
   $("updated").textContent = "Updated " + new Date(d.at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }) + (d.launchDate ? " · launch " + fmtDate(d.launchDate) : "");
   $("tiles").innerHTML = [
-    ["Players (all time)", d.totals.players.toLocaleString("en-GB")],
+    ["Visitors (all time)", d.totals.players.toLocaleString("en-GB")],
     ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
     ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
     ["Groups", d.totals.groups],
@@ -97,7 +97,8 @@ function render() {
 
   barChart($("chPlayers"), open.map(h => ({ label: "#" + h.hand, value: h.finished, back: h.started,
     title: `Hand #${h.hand} (${fmtDate(h.date)}): ${h.started} started, ${h.finished} finished, ${h.bonusPlayed} played the bonus` })));
-  barChart($("chNew"), d.newPlayers.map(x => ({ label: fmtDate(x.date), value: x.n, title: `${fmtDate(x.date)}: ${x.n} new` })));
+  barChart($("chNew"), d.newPlayers.map(x => ({ label: fmtDate(x.date), value: x.n, title: `${fmtDate(x.date)}: ${x.n} first visits` })));
+  drawSources(d.sources);
 
   const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct(x.correct || 0, (x.rounds || 0) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
     .sort((a, b) => (a.right ?? 101) - (b.right ?? 101));
@@ -125,6 +126,15 @@ function render() {
   pick.innerHTML = open.slice().reverse().map(h => `<option value="${h.hand}">Hand #${h.hand} · ${fmtDate(h.date)}</option>`).join("");
   if (was && open.find(h => String(h.hand) === was)) pick.value = was;
   pick.onchange = drawHand; drawHand();
+}
+const VIA = { ref: "link tag", referrer: "referring site", direct: "no source" };
+function drawSources(rows) {
+  if (!rows) { $("tbSources").innerHTML = '<p class="muted small">Not live yet: the server hasn\'t been updated.</p>'; return; }
+  if (!rows.length) { $("tbSources").innerHTML = '<p class="muted small">No visitors in the last 30 days.</p>'; return; }
+  const rate = (a, b) => { const v = pct(a, b); return fmtPct(v) + (b && b < MIN_N ? small(b) : "") + meter(v); };
+  $("tbSources").innerHTML = table([{ t: "Source" }, { t: "Visitors", n: 1 }, { t: "Played a hand", n: 1 }, { t: "Played 2+", n: 1 }, { t: "A week on", n: 1 }],
+    rows.map(r => [esc(r.tag) + (r.via ? ` <span class="muted small">${esc(VIA[r.via] || r.via)}</span>` : ""), r.players,
+      rate(r.played, r.players), rate(r.returned, r.players), r.weekEligible ? rate(r.weekOn, r.weekEligible) : "–"]));
 }
 function drawHand() {
   const h = data.hands.find(x => String(x.hand) === $("handPick").value);
@@ -164,6 +174,10 @@ function demoStats() {
   return {
     launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37 }, families, hands,
     newPlayers: Array.from({ length: 30 }, (_, i) => ({ date: new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10), n: i < 26 ? 0 : Math.floor(30 + r() * 90) })),
+    sources: [["direct", "direct"], ["dailydle", "referrer"], ["reddit", "ref"], ["untracked", null], ["dlesgg", "referrer"], ["invite", "ref"], ["someblog.com", "referrer"]].map(([tag, via], i) => {
+      const players = Math.max(2, Math.floor((140 - i * 20) * (0.5 + r()))), played = Math.floor(players * (0.5 + r() * 0.4)), returned = Math.floor(played * r() * 0.7), weekEligible = Math.floor(players * 0.6);
+      return { tag, via, players, played, returned, weekEligible, weekOn: Math.floor(weekEligible * r() * 0.4) };
+    }),
   };
 }
 
