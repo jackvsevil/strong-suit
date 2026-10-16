@@ -511,14 +511,6 @@ function renderResults() {
 /* From a guest's third finished hand: one card asking them to create an account before a cleared browser loses their history.
    "Not now" hides it for a week. */
 const SAVE_LATER_KEY = "ss_save_nudge_until";
-/* Safari (iPhone, iPad, Mac) deletes a site's stored data after 7 days of use without a visit. Not other browsers,
-   and not when the game was added to the home screen, which keeps its own data. */
-function safariMayClear() {
-  const ua = navigator.userAgent;
-  const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|EdgA|OPR|OPiOS|SamsungBrowser|Android/.test(ua);
-  const homeScreen = navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
-  return safari && !homeScreen;
-}
 async function maybeSaveCard() {
   if (G.tut || !api.account().anonymous) return;
   try { if (Date.now() < +localStorage.getItem(SAVE_LATER_KEY)) return; } catch (_) {}
@@ -526,7 +518,6 @@ async function maybeSaveCard() {
   if ((st.played || 0) < 3 || $("results").hidden || !api.account().anonymous) return;
   const streak = st.streak && st.lastHand >= S.n - 1 ? st.streak : 0;
   $("saveTitle").textContent = streak >= 2 ? "Save your " + streak + "-day streak" : "Save your " + st.played + " hands";
-  $("saveSafari").hidden = !safariMayClear();
   $("saveBtn").onclick = () => toSignin();
   $("saveLater").onclick = () => { try { localStorage.setItem(SAVE_LATER_KEY, String(Date.now() + 7 * 86400000)); } catch (_) {} $("saveCard").hidden = true; };
   $("saveCard").hidden = false;
