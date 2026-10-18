@@ -637,6 +637,7 @@ async function renderGroups() {
   $("guestGroups").hidden = !guest;
   $("joinCard").hidden = $("startGroup").hidden = guest;
   const groups = await api.groups().catch(e => (toast(e.message), []));
+  if (groups.length) api.warmGroups();   // wake the server now, while they pick a group
   list.innerHTML = groups.length || guest ? "" : '<p class="muted">You\'re not in any groups yet. Start one and share the code, or join a friend\'s.</p>';
   groups.forEach(g => {
     const d = document.createElement("button"); d.className = "row tap gopen";
@@ -676,6 +677,9 @@ async function renderGroup(gid) {
   show("group"); bar([]);
   $("gBody").innerHTML = '<p class="muted small">Loading…</p>';
   ["gTabs", "gPeriods", "gStep"].forEach(id => ($(id).hidden = true));
+  // Ask for today's table at the same time as the group details, rather than one after the other.
+  const early = S.config.launchDate && S.n >= 1 ? seen(gid, "d" + S.n, api.groupDay(gid, S.n)) : null;
+  if (early) early.catch(() => {});   // drawGroup shows any error
   const g = await api.group(gid).catch(() => null);
   if (!g) { toast("Couldn't open that group."); return renderGroups(); }
   $("gName").innerHTML = symHtml(g.symbol) + esc(g.name);
@@ -684,12 +688,13 @@ async function renderGroup(gid) {
   $("gInvite").onclick = () => copyInvite(g);
   $("gLeave").onclick = async () => {
     if (!(await ask({ title: "Leave " + g.name + "?", text: g.memberCount <= 1 ? "You're the last member, so the group will be deleted." : "You can rejoin later with the code.", ok: "Leave", danger: true }))) return;
-    busy(true); try { await api.leaveGroup(g.id); toast("Left " + g.name); await refreshMe(); } catch (e) { toast(e.message); } finally { busy(false); renderGroups(); }
+    busy(true); try { await api.leaveGroup(g.id); delete GSEEN[api.account().uid + "/" + g.id]; toast("Left " + g.name); await refreshMe(); } catch (e) { toast(e.message); } finally { busy(false); renderGroups(); }
   };
   const launch = S.config.launchDate;
   const open = launch && S.n >= 1;
   const thisMonth = ymd(new Date()).slice(0, 7);
-  GV = { gid, tab: "table", period: "day", hand: S.n, month: thisMonth, firstMonth: open ? launch.slice(0, 7) : thisMonth, day: {}, mon: {}, seq: 0 };
+  GV = { gid, tab: "table", period: "day", hand: S.n, month: thisMonth, firstMonth: open ? launch.slice(0, 7) : thisMonth, day: {}, mon: {}, done: {}, seq: 0 };
+  if (early) GV.day[S.n] = tracked(GV, "d" + S.n, early, gv => delete gv.day[S.n]);
   document.querySelectorAll("#gTabs button").forEach(b => (b.onclick = () => { GV.tab = b.dataset.tab; drawGroup(); }));
   document.querySelectorAll("#gPeriods button").forEach(b => (b.onclick = () => { GV.period = b.dataset.period; drawGroup(); }));
   $("gPrev").onclick = () => stepGroup(-1); $("gNext").onclick = () => stepGroup(1);
@@ -774,8 +779,14 @@ function groupPeriod() {
   if (GV.tab === "subjects" && GV.period === "day") return "month";
   return GV.period;
 }
-function groupDay(n) { return (GV.day[n] ||= api.groupDay(GV.gid, n).catch(e => { delete GV.day[n]; throw e; })); }
-function groupMonth(m) { return (GV.mon[m] ||= api.groupMonth(GV.gid, m).catch(e => { delete GV.mon[m]; throw e; })); }
+// The last table seen for each group, kept in memory for this visit to the site (never saved to the device),
+// so reopening a group or going back to a period shows it straight away while the fresh copy loads.
+// Keyed by player and group: "d12" is Hand #12, "m2026-10" a month, "mall" all time.
+const GSEEN = {};
+const seen = (gid, key, p) => p.then(d => (((GSEEN[api.account().uid + "/" + gid] ||= {})[key] = d), d));
+const tracked = (gv, key, p, forget) => p.then(d => ((gv.done[key] = true), d), e => { forget(gv); throw e; });
+function groupDay(n) { return (GV.day[n] ||= tracked(GV, "d" + n, seen(GV.gid, "d" + n, api.groupDay(GV.gid, n)), gv => delete gv.day[n])); }
+function groupMonth(m) { return (GV.mon[m] ||= tracked(GV, "m" + m, seen(GV.gid, "m" + m, api.groupMonth(GV.gid, m)), gv => delete gv.mon[m])); }
 
 async function drawGroup() {
   const per = groupPeriod(), seq = ++GV.seq;
@@ -793,12 +804,20 @@ async function drawGroup() {
     $("gPrev").disabled = GV.month <= GV.firstMonth; $("gNext").disabled = GV.month >= ymd(new Date()).slice(0, 7);
   }
   const body = $("gBody");
-  body.innerHTML = '<p class="muted small">Loading…</p>';
+  const key = per === "day" ? "d" + GV.hand : "m" + (per === "all" ? "all" : GV.month);
+  const paint = (data, note) => {
+    body.innerHTML = (note ? '<p class="small muted">' + note + "</p>" : "") +
+      (GV.tab === "picks" ? picksHtml(data) : GV.tab === "subjects" ? subjectsHtml(data, per) : per === "day" ? dayHtml(data) : monthHtml(data, per));
+    body.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => openHand(+b.dataset.open)));
+  };
+  // Seen earlier but not yet fetched on this visit to the group: show that copy now, then swap in the fresh one.
+  const earlier = !GV.done[key] && (GSEEN[api.account().uid + "/" + GV.gid] || {})[key];
+  if (earlier) paint(earlier, "Updating…");
+  else body.innerHTML = '<p class="muted small">Loading…</p>';
   try {
     const data = per === "day" ? await groupDay(GV.hand) : await groupMonth(per === "all" ? "all" : GV.month);
     if (seq !== GV.seq) return;   // they've moved on
-    body.innerHTML = GV.tab === "picks" ? picksHtml(data) : GV.tab === "subjects" ? subjectsHtml(data, per) : per === "day" ? dayHtml(data) : monthHtml(data, per);
-    body.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => openHand(+b.dataset.open)));
+    paint(data);
   } catch (e) { if (seq === GV.seq) body.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; }
 }
 
