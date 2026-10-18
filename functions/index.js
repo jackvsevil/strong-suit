@@ -12,6 +12,7 @@ initializeApp();
 const h = makeHandlers({ db: getFirestore(), FieldValue, Timestamp, auth: getAuth(), HttpsError });
 const call = fn => onCall({ cors: true }, async req => {
   if (!req.auth) throw new HttpsError("unauthenticated", "Please sign in first.");
+  if (req.data && req.data.warm === true) return { warm: true };   // a wake-up call from the app, so the next real request skips the cold start
   return fn(req.data || {}, req.auth.uid, req.auth.token);   // the token says whether they're a guest
 });
 export const startHand = call(h.startHand);

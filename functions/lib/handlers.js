@@ -367,20 +367,23 @@ const newGroupCode = (async ({ groupId }, uid) => {
 /* ---------- Group pages: only members can look, and only the server reads other players' plays ---------- */
 async function groupMembers(groupId, uid) {
   if (typeof groupId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(groupId)) fail("invalid-argument", "Unknown group.");
-  const gref = db.doc(`groups/${groupId}`);
-  const me = await gref.collection("members").doc(uid).get();
-  if (!me.exists) fail("permission-denied", "You're not in that group.");
-  const ms = await gref.collection("members").get();
+  // One read: the member list itself says whether you're in it.
+  const ms = await db.doc(`groups/${groupId}`).collection("members").get();
+  if (!ms.docs.some(d => d.id === uid)) fail("permission-denied", "You're not in that group.");
   return ms.docs.map(d => ({ uid: d.id, name: d.get("name") }));
 }
 
 // One hand: everyone's score, and, once you've finished it yourself, how they ranked it and what they picked.
 const groupDay = (async ({ groupId, hand }, uid) => {
   needHand(hand);
-  const members = await groupMembers(groupId, uid);
-  const h = await db.doc(`hands/${hand}`).get();
+  // Reads run side by side where they can (members with the hand, then plays with the answer key),
+  // so a group page takes two trips to the database rather than five.
+  const [members, h] = await Promise.all([groupMembers(groupId, uid), db.doc(`hands/${hand}`).get()]);
   if (!h.exists || h.get("opensAt").toMillis() > now()) fail("not-found", "That hand isn't open yet.");
-  const plays = await Promise.all(members.map(m => db.doc(`players/${m.uid}/plays/${hand}`).get()));
+  const [plays, keyDoc] = await Promise.all([
+    Promise.all(members.map(m => db.doc(`players/${m.uid}/plays/${hand}`).get())),
+    db.doc(`handKeys/${hand}`).get(),   // only used once you've finished the hand; never sent otherwise
+  ]);
   const byUid = Object.fromEntries(members.map((m, i) => [m.uid, plays[i].exists ? plays[i].data() : null]));
   const mine = byUid[uid];
   const canSee = !!(mine && mine.status === "done");
@@ -394,7 +397,7 @@ const groupDay = (async ({ groupId, hand }, uid) => {
   });
   const out = { hand, date: h.get("date") || null, categories, members: rows, canSee, bonusDone: !!(mine && mine.bonus) };
   if (!canSee) return out;
-  const keys = (await db.doc(`handKeys/${hand}`).get()).get("rounds");
+  const keys = keyDoc.get("rounds");
   out.rounds = categories.map(c => {
     if (c.slot === mine.skipped && !mine.bonus) return { slot: c.slot, locked: true };   // don't spoil your bonus round
     const k = keys[c.slot], picks = {};

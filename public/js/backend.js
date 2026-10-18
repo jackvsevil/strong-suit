@@ -48,6 +48,7 @@ async function firebaseBackend(config, source) {
   const fns = Fn.getFunctions(app, "europe-west2");
   const call = name => async data => { try { return (await Fn.httpsCallable(fns, name)(data)).data; } catch (e) { throw friendly(e); } };
   const get = async path => { const s = await F.getDoc(F.doc(db, path)); return s.exists() ? s.data() : null; };
+  let warmedAt = 0;
 
   await auth.authStateReady();
   let linkNote = null;
@@ -153,6 +154,13 @@ async function firebaseBackend(config, source) {
     async group(gid) { const g = await get(`groups/${gid}`); return g && { id: gid, ...g }; },
     groupDay: (gid, n) => call("groupDay")({ groupId: gid, hand: n }),
     groupMonth: (gid, month) => call("groupMonth")({ groupId: gid, month }),
+    // Wakes the group functions while the player is still on the Groups list, so the group page doesn't wait
+    // for a cold start. At most once every 5 minutes; failures don't matter.
+    warmGroups() {
+      if (Date.now() - warmedAt < 5 * 60000) return;
+      warmedAt = Date.now();
+      ["groupDay", "groupMonth"].forEach(n => Fn.httpsCallable(fns, n)({ warm: true }).catch(() => {}));
+    },
     globalFamilies: () => get("stats/families").then(d => (d && d.families) || {}).catch(() => ({})),
     async myPlays() {   // every hand you've started, keyed by hand number
       const qs = await F.getDocs(F.collection(db, `players/${uid()}/plays`));
@@ -255,6 +263,7 @@ function demoBackend() {
     },
     groups: async () => st.me.groupIds.map(id => ({ id, ...st.groups[id] })),
     group: async gid => (st.groups[gid] ? { id: gid, ...st.groups[gid] } : null),
+    warmGroups() {},
     // same shapes as the server's groupDay and groupMonth
     async groupDay(gid, n) {
       const g = st.groups[gid], h = hands_[n];
