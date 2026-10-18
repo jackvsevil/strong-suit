@@ -137,6 +137,15 @@ const run = { hand, player, doc }[ACTION];
 if (!run) stop(`Unknown action "${ACTION}".`);
 await run();
 
+// Also as notes on the run (up to 10 per step), which Claude can read through the GitHub API without downloading logs.
+if (process.env.GITHUB_ACTIONS) {
+  const text = out.join("\n"), size = 4000, parts = [];
+  for (let i = 0; i < text.length && parts.length < 10; i += size) parts.push(text.slice(i, i + size));
+  if (text.length > size * 10) parts[9] += "\n… (cut short: see the run page for the rest)";
+  const esc = s => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  parts.forEach((p, i) => console.log(`::notice title=Inspect ${i + 1}/${parts.length}::${esc(p)}`));
+}
+
 if (process.env.GITHUB_STEP_SUMMARY) {
   const fs = await import("node:fs");
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Inspect: ${ACTION} ${TARGET}\n\n\`\`\`text\n${out.join("\n")}\n\`\`\`\n`);
