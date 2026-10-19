@@ -328,6 +328,9 @@ body.tut .wrap{padding-bottom:230px}
 .card.invite{border-color:var(--back-2);box-shadow:inset 0 0 0 1px var(--back-2)}
 .card.invite b .sym{font-size:15px;margin-right:4px}
 .card.invite .lb{padding:8px 12px}
+/* sign-up cards: the two buttons share a row when they fit, and stack full width when they don't (small phones) */
+.card.invite .field,#saveCard .field{flex-wrap:wrap}
+.card.invite .field .btn,#saveCard .field .btn{flex:1 1 auto}
 .card.flash{box-shadow:0 0 0 3px var(--back-2);transition:box-shadow .3s}
 .backlink{align-self:flex-start;background:none;border:0;color:var(--back-2);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0;margin-bottom:-6px}
 .linkbtn{background:none;border:0;color:var(--bad);font-weight:600;cursor:pointer;padding:8px 0;text-align:left}
