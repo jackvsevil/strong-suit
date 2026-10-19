@@ -44,6 +44,16 @@ p{margin:0}
 .tile span{font-size:12px;color:var(--muted);font-weight:600}
 svg{display:block;width:100%;height:auto;overflow:visible}
 svg text{fill:var(--muted);font:11px var(--body)}
+.hit{cursor:default;outline:none}
+.hit .hov{fill:transparent}
+.hit.on .hov{fill:var(--ink);opacity:.05}
+.hit.on .bar{fill:var(--back)}
+.hit .guide{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:0}
+.hit.on .guide{opacity:.6}
+.hit .dot{opacity:0}
+.hit.on .dot{opacity:1}
+.tip{position:fixed;z-index:10;pointer-events:none;max-width:260px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.35;box-shadow:0 6px 20px rgba(12,20,36,.18)}
+.tip b{display:block;font-weight:700;margin-bottom:2px}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);font-weight:600}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .tablewrap{overflow-x:auto}
