@@ -66,9 +66,11 @@ export function makeDb(clock = () => Date.now()) {
       let docs = [...store.entries()].filter(([p]) => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/"));
       const val = x => (x instanceof Timestamp ? x.ms : x);
       const test = { "==": (a, b) => a === b, ">=": (a, b) => a >= b, "<": (a, b) => a < b, ">": (a, b) => a > b, "<=": (a, b) => a <= b };
-      docs = docs.filter(([, d]) => q.filters.every(([f, op, v]) => d[f] !== undefined && test[op](val(d[f]), val(v))));
+      const at = (d, f) => f.split(".").reduce((o, k) => (o == null ? undefined : o[k]), d);   // "stats.played" reaches inside
+      docs = docs.filter(([, d]) => q.filters.every(([f, op, v]) => at(d, f) !== undefined && test[op](val(at(d, f)), val(v))));
       if (q.order) docs.sort((a, b) => ((a[1][q.order]?.ms ?? a[1][q.order]) > (b[1][q.order]?.ms ?? b[1][q.order]) ? 1 : -1));
-      return { docs: docs.slice(0, q.lim).map(([p, d]) => snap(p, d)) };
+      const out = docs.slice(0, q.lim).map(([p, d]) => snap(p, d));
+      return { docs: out, size: out.length };
     };
     const api = {
       path, _query: true, run,
@@ -106,6 +108,7 @@ export function makeDb(clock = () => Date.now()) {
   return {
     store,
     doc, collection,
+    getAll: async (...refs) => refs.map(r => snap(r.path, store.get(r.path))),
     batch: () => { const w = writer(); return { ...w, commit: async () => w.flush() }; },
     runTransaction: async fn => {
       const w = writer();

@@ -61,7 +61,7 @@ function barChart(el, bars, { max, fmt = v => v, height = 190 } = {}) {
   const W = Math.max(300, Math.round(el.clientWidth || 600)), L = 34, B = 22, T = 8, iw = W - L - 4;   // drawn at real size, so text stays 11px
   const top = max ?? niceMax(Math.max(1, ...bars.map(b => Math.max(b.value, b.back || 0))));   // a given max is used as it is (e.g. 60)
   const H = height, ih = H - B - T;
-  const step = iw / bars.length, bw = Math.max(2, Math.min(28, step * 0.7)), every = Math.ceil(bars.length / 12);
+  const step = iw / bars.length, bw = Math.max(2, Math.min(28, step * 0.7)), every = Math.ceil(bars.length / Math.max(3, Math.min(12, Math.floor(iw / 56))));   // about one label per 56px, so dates don't overlap on a phone
   const y = v => T + ih - (v / top) * ih;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
   [0, 0.5, 1].forEach(f => { const v = top * f, yy = y(v); s += `<line x1="${L}" x2="${W - 4}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(Math.round(v * 10) / 10)}</text>`; });
@@ -72,6 +72,28 @@ function barChart(el, bars, { max, fmt = v => v, height = 190 } = {}) {
     if (b.value > 0) s += `<rect x="${cx - bw / 2}" y="${y(b.value)}" width="${bw}" height="${T + ih - y(b.value)}" rx="3" fill="var(--back-2)"/>`;
     s += "</g>";
     if (i % every === 0) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(b.label)}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+/** A running total over days. points: [{ label, value, title }]. Drawn as a line over a pale area, with a dot per day when there are few. */
+function lineChart(el, points, { height = 190 } = {}) {
+  if (!points.length) { el.innerHTML = '<p class="muted small">Nothing yet.</p>'; return; }
+  const W = Math.max(300, Math.round(el.clientWidth || 600)), L = 34, R = 8, B = 22, T = 8, iw = W - L - R, H = height, ih = H - B - T;
+  const top = niceMax(Math.max(1, ...points.map(p => p.value)));
+  const n = points.length, step = n > 1 ? iw / (n - 1) : 0;
+  const x = i => (n > 1 ? L + step * i : L + iw / 2), y = v => T + ih - (v / top) * ih;
+  const every = Math.ceil(n / 8);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  [0, 0.5, 1].forEach(f => { const v = top * f, yy = y(v); s += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${Math.round(v * 10) / 10}</text>`; });
+  const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join("");
+  if (n > 1) s += `<path d="${line}L${x(n - 1).toFixed(1)},${T + ih}L${x(0).toFixed(1)},${T + ih}Z" fill="var(--soft)" opacity="0.55"/>`;
+  s += `<path d="${line}" fill="none" stroke="var(--back-2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  points.forEach((p, i) => {
+    const w = n > 1 ? step : iw;
+    s += `<g><title>${esc(p.title)}</title><rect x="${x(i) - w / 2}" y="${T}" width="${w}" height="${ih}" fill="transparent"/>`;
+    if (n <= 31 || i === n - 1) s += `<circle cx="${x(i)}" cy="${y(p.value)}" r="${i === n - 1 ? 4 : 3}" fill="var(--back-2)" stroke="var(--card)" stroke-width="1.5"/>`;
+    s += "</g>";
+    if (i % every === 0 || i === n - 1 && (n - 1) % every > every / 2) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="${n > 1 && i === n - 1 ? "end" : n > 1 && i === 0 ? "start" : "middle"}">${esc(p.label)}</text>`;
   });
   el.innerHTML = s + "</svg>";
 }
@@ -90,7 +112,9 @@ function render() {
   $("updated").textContent = "Updated " + new Date(d.at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }) + (d.launchDate ? " · launch " + fmtDate(d.launchDate) : "");
   $("tiles").innerHTML = [
     ["Visitors (all time)", d.totals.players.toLocaleString("en-GB")],
-    ["Players with an account", d.totals.accounts == null ? "–" : d.totals.accounts.toLocaleString("en-GB") + (d.totals.players ? " · " + fmtPct(pct(d.totals.accounts, d.totals.players)) : "")],
+    ["Accounts", d.totals.accounts == null ? "–" : d.totals.accounts.toLocaleString("en-GB")],
+    // accounts that have finished a hand, out of everyone who has (guests included); the admin's own account is left out
+    ["Players with an account", d.totals.accountsPlayed == null || d.totals.playedVisitors == null ? "–" : fmtPct(pct(d.totals.accountsPlayed, d.totals.playedVisitors))],
     ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
     ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
     ["Groups", d.totals.groups],
@@ -99,6 +123,7 @@ function render() {
   barChart($("chPlayers"), open.map(h => ({ label: "#" + h.hand, value: h.finished, back: h.started,
     title: `Hand #${h.hand} (${fmtDate(h.date)}): ${h.started} started, ${h.finished} finished, ${h.bonusPlayed} played the bonus` })));
   barChart($("chNew"), d.newPlayers.map(x => ({ label: fmtDate(x.date), value: x.n, title: `${fmtDate(x.date)}: ${x.n} first visits` })));
+  drawGrowth(d);
   drawSources(d.sources);
 
   const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct(x.correct || 0, (x.rounds || 0) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
@@ -127,6 +152,19 @@ function render() {
   pick.innerHTML = open.slice().reverse().map(h => `<option value="${h.hand}">Hand #${h.hand} · ${fmtDate(h.date)}</option>`).join("");
   if (was && open.find(h => String(h.hand) === was)) pick.value = was;
   pick.onchange = drawHand; drawHand();
+}
+function drawGrowth(d) {
+  const day = x => ({ label: fmtDate(x.date), value: x.n });
+  if (!d.accountsByDay) $("chAccounts").innerHTML = `<p class="muted small">${d.totals.accounts === null ? "Couldn't read the sign-ins just now. Try Refresh." : "Not live yet: the server hasn't been updated."}</p>`;
+  else {
+    const first = d.accountsByDay[0];
+    lineChart($("chAccounts"), d.accountsByDay.map((x, i) => ({ ...day(x),
+      title: i === 0 && d.accountsBefore ? `${fmtDate(x.date)}: ${x.n} accounts, including ${d.accountsBefore} made before sign-up dates were recorded` : `${fmtDate(x.date)}: ${x.n} accounts` })));
+    $("accNote").textContent = "Running total of players with an account (Google or email link), by UTC day. Your own account isn't counted." +
+      (first && d.accountsBefore ? ` Sign-up dates are recorded from ${fmtDate(d.accountsFrom)}, so the ${d.accountsBefore} made before then start the line.` : "");
+  }
+  if (!d.groupsByDay) $("chGroups").innerHTML = '<p class="muted small">Not live yet: the server hasn\'t been updated.</p>';
+  else lineChart($("chGroups"), d.groupsByDay.map(x => ({ ...day(x), title: `${fmtDate(x.date)}: ${x.n} groups` })));
 }
 const VIA = { ref: "link tag", referrer: "referring site", direct: "no source" };
 function drawSources(rows) {
@@ -173,7 +211,10 @@ function demoStats() {
   hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
   const today = Date.now();
   return {
-    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, accounts: 58 }, families, hands,
+    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, accounts: 58, accountsPlayed: 55, playedVisitors: 301 }, families, hands,
+    accountsFrom: hands[0].date, accountsBefore: 12,
+    accountsByDay: hands.map((h, i) => ({ date: h.date, n: 12 + Math.round(46 * (i / Math.max(1, hands.length - 1)) ** 1.4) })),
+    groupsByDay: hands.map((h, i) => ({ date: h.date, n: Math.round(37 * (i / Math.max(1, hands.length - 1)) ** 1.2) })),
     newPlayers: Array.from({ length: 30 }, (_, i) => ({ date: new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10), n: i < 26 ? 0 : Math.floor(30 + r() * 90) })),
     sources: [["direct", "direct"], ["dailydle", "referrer"], ["reddit", "ref"], ["untracked", null], ["dlesgg", "referrer"], ["invite", "ref"], ["someblog.com", "referrer"]].map(([tag, via], i) => {
       const players = Math.max(2, Math.floor((140 - i * 20) * (0.5 + r()))), played = Math.floor(players * (0.5 + r() * 0.4)), returned = Math.floor(played * r() * 0.7), weekEligible = Math.floor(players * 0.6);

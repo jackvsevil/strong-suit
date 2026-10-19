@@ -429,10 +429,11 @@ const groupMonth = (async ({ groupId, month }, uid) => {
 });
 
 /* ---------- Admin page: totals only, plus per-round and per-pair results (the caller is checked in index.js) ---------- */
-const adminStats = async () => {
+// excludeEmails: the admin's own sign-in addresses, left out of the account figures.
+const adminStats = async ({ excludeEmails = [] } = {}) => {
   const DAY = 86400000, today = Math.floor(now() / DAY) * DAY;
   const count = q => q.count().get().then(r => r.data().count);
-  const [cfg, hands, keys, rstats, boards, fams, players, groups, newByDay, recent] = await Promise.all([
+  const [cfg, hands, keys, rstats, boards, fams, players, groups, playedAll, newByDay, recent] = await Promise.all([
     db.doc("config/app").get(),
     db.collection("hands").get(),
     db.collection("handKeys").get(),
@@ -440,7 +441,8 @@ const adminStats = async () => {
     db.collection("leaderboards").get(),
     db.doc("stats/families").get(),
     count(db.collection("players")),
-    count(db.collection("groups")),
+    db.collection("groups").get(),   // small documents; their creation dates make the groups chart
+    count(db.collection("players").where("stats.played", ">=", 1)),   // visitors who've finished a hand, guests included
     Promise.all(Array.from({ length: 30 }, (_, i) => {   // new players per UTC day, last 30 days
       const from = today - (29 - i) * DAY;
       return count(db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(from)).where("createdAt", "<", Timestamp.fromMillis(from + DAY)))
@@ -448,7 +450,7 @@ const adminStats = async () => {
     })),
     db.collection("players").where("createdAt", ">=", Timestamp.fromMillis(today - 29 * DAY)).get(),   // for the sources table
   ]);
-  const accounts = await countAccounts();
+  const acc = await accountFigures(excludeEmails, playedAll);
   const byId = snap => Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
   const K = byId(keys), R = byId(rstats), L = byId(boards);
   const out = hands.docs.map(d => {
@@ -471,23 +473,76 @@ const adminStats = async () => {
   }).sort((a, b) => a.hand - b.hand);
   return {
     launchDate: cfg.exists ? cfg.get("launchDate") : null, at: now(),
-    totals: { players, groups, accounts }, newPlayers: newByDay, sources: sourceTable(recent.docs, hands.docs),
+    totals: { players, groups: groups.size, ...acc.totals },
+    accountsFrom: ACCOUNTS_DATED_FROM, accountsBefore: acc.before, accountsByDay: acc.byDay,
+    groupsByDay: groupSeries(groups.docs, cfg.exists ? cfg.get("launchDate") : null),
+    newPlayers: newByDay, sources: sourceTable(recent.docs, hands.docs),
     families: (fams.exists && fams.get("families")) || {}, hands: out,
   };
 };
 
-// Players who've created an account (Google or email link), as opposed to guests. Firebase Auth hands out 1,000 at a time.
-// null if Auth can't be read, so the page shows a dash rather than a wrong number.
-async function countAccounts() {
-  let n = 0, pageToken;
+// Sign-up times are recorded (accountAt, by claimScores) from this day. Accounts made earlier count as one starting total.
+const ACCOUNTS_DATED_FROM = "2026-10-19";
+const DAY_MS = 86400000;
+const isoDay = ms => new Date(ms).toISOString().slice(0, 10);
+const dayMs = iso => Date.parse(iso + "T00:00:00Z");
+/** Running totals per UTC day from `from` to today. `dates` are YYYY-MM-DD; any before `from` count on the first day. */
+function cumulative(dates, from, base = 0) {
+  const per = {};
+  dates.forEach(d => { const k = d < from ? from : d; per[k] = (per[k] || 0) + 1; });
+  const out = [], end = Math.floor(now() / DAY_MS) * DAY_MS;
+  let n = base;
+  for (let t = dayMs(from); t <= end; t += DAY_MS) { const d = isoDay(t); n += per[d] || 0; out.push({ date: d, n }); }
+  return out;
+}
+
+// Accounts (Google or email link, as opposed to guests), leaving out the admin's own. Firebase Auth hands out 1,000 at a time.
+// Totals are null if Auth can't be read, so the page shows a dash rather than a wrong number.
+async function accountFigures(excludeEmails, playedAll) {
+  const skip = new Set(excludeEmails.map(e => String(e).toLowerCase()));
+  const uids = [], admins = [];
   try {
+    let pageToken;
     do {
       const page = await auth.listUsers(1000, pageToken);
-      n += page.users.filter(u => (u.providerData || []).length).length;
+      for (const u of page.users) {
+        if (!(u.providerData || []).length) continue;   // a guest
+        (u.email && skip.has(u.email.toLowerCase()) ? admins : uids).push(u.uid);
+      }
       pageToken = page.pageToken;
     } while (pageToken);
-    return n;
-  } catch (e) { console.error("countAccounts", e); return null; }
+  } catch (e) {
+    console.error("accountFigures", e);
+    return { totals: { accounts: null, accountsPlayed: null, playedVisitors: null }, before: null, byDay: null };
+  }
+  const refs = [...uids, ...admins].map(u => db.doc(`players/${u}`));
+  const snaps = [];
+  for (let i = 0; i < refs.length; i += 300) snaps.push(...(refs.length ? await db.getAll(...refs.slice(i, i + 300)) : []));
+  const played = s => s.exists && ((s.get("stats") || {}).played || 0) >= 1;
+  const mine = snaps.slice(0, uids.length), adminSnaps = snaps.slice(uids.length);
+  const dated = [];
+  let before = 0;
+  mine.forEach(s => {
+    const at = s.exists && s.get("accountAt");
+    const d = at && at.toMillis ? isoDay(at.toMillis()) : null;
+    if (d && d >= ACCOUNTS_DATED_FROM) dated.push(d); else before++;
+  });
+  return {
+    totals: {
+      accounts: uids.length,
+      accountsPlayed: mine.filter(played).length,
+      playedVisitors: Math.max(0, playedAll - adminSnaps.filter(played).length),
+    },
+    before,
+    byDay: cumulative(dated, ACCOUNTS_DATED_FROM, before),
+  };
+}
+
+// Groups that still exist, by the day they were made, from launch day (anything older counts on launch day).
+function groupSeries(docs, launchDate) {
+  const dates = docs.map(d => d.get("createdAt")).filter(t => t && t.toMillis).map(t => isoDay(t.toMillis()));
+  const from = launchDate || dates.slice().sort()[0];
+  return from ? cumulative(dates, from) : [];
 }
 
 // New players in the last 30 days by where they came from, and whether they stuck around.
@@ -538,7 +593,8 @@ const claimScores = (async (_, uid, token) => {
     });
     if (fresh) added++;
   }
-  await pref.set({ listed: true }, { merge: true });
+  // this runs once, on the first load after sign-up, so it's also when the account was made (for the admin page)
+  await pref.set({ listed: true, ...(p.get("accountAt") ? {} : { accountAt: FieldValue.serverTimestamp() }) }, { merge: true });
   return { added };
 });
 

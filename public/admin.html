@@ -81,6 +81,8 @@ select{border:1px solid var(--line);background:var(--card);border-radius:8px;pad
       <div class="card"><div><h2>Players per hand</h2><p class="muted small">Started a hand, and finished all four rounds.</p></div>
         <div class="legend"><span><i style="background:var(--soft)"></i>Started</span><span><i style="background:var(--back-2)"></i>Finished</span></div><div id="chPlayers"></div></div>
       <div class="card"><div><h2>Visitors per day</h2><p class="muted small">First visits, last 30 days, UTC. A guest profile is made as soon as the page loads, so this counts visitors, not players.</p></div><div id="chNew"></div></div>
+      <div class="card"><div><h2>Accounts over time</h2><p class="muted small" id="accNote">Running total of players with an account (Google or email link), by UTC day. Your own account isn't counted.</p></div><div id="chAccounts"></div></div>
+      <div class="card"><div><h2>Groups over time</h2><p class="muted small">Running total of groups, by the UTC day each was started. Groups that have since closed (everyone left) aren't counted.</p></div><div id="chGroups"></div></div>
       <div class="card"><div><h2>Average score per hand</h2><p class="muted small">Out of 60, finished hands only.</p></div><div class="fill" id="chScore"></div></div>
       <div class="card"><div><h2>Subjects</h2><p class="muted small">All hands so far: share of pairs right, and how often skipped when dealt.</p></div><div class="tablewrap" id="tbFams"></div></div>
     </div>

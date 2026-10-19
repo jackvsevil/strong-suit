@@ -34,6 +34,6 @@ const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x =
 export const adminStats = onCall({ cors: true, memory: "512MiB", timeoutSeconds: 60 }, async req => {
   const t = req.auth && req.auth.token;
   if (!t || !t.email || !t.email_verified || !ADMINS.includes(String(t.email).toLowerCase())) throw new HttpsError("permission-denied", "This page is private.");
-  return h.adminStats();
+  return h.adminStats({ excludeEmails: ADMINS });   // your own account is left out of the account figures
 });
 export const deleteAccount = call(h.deleteAccount);

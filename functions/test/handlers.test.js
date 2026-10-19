@@ -15,7 +15,7 @@ function setup() {
     getUser: async u => ({ uid: u, providerData: guests.has(u) ? [] : [{ providerId: "google.com" }] }),
     // two pages, so paging is exercised: 1 account and 1 guest, then 1 more account
     listUsers: async (_, token) => token
-      ? { users: [{ uid: "c", providerData: [{ providerId: "password" }] }] }
+      ? { users: [{ uid: "c", providerData: [{ providerId: "password" }] }, { uid: "boss", email: "Boss@Example.com", providerData: [{ providerId: "google.com" }] }] }
       : { users: [{ uid: "a", providerData: [{ providerId: "google.com" }] }, { uid: "g", providerData: [] }], pageToken: "next" },
   };
   const h = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth, now: clock });
@@ -251,11 +251,17 @@ test("admin stats: per-hand starts and finishes, per-round skips and per-pair re
   await playHand(h, "a", [0, 1, 2, 3, 4], [6, 6, 6, 6], 2);   // skips slot 4, bonus 2/6
   await playHand(h, "b", [4, 3, 2, 1, 0], [1, 2, 3, 4]);      // skips slot 0
   await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, "c");   // starts, never finishes
-  const s = await h.adminStats();
-  assert.equal(s.totals.players, 3);
-  assert.equal(s.totals.accounts, 2);
+  db.store.set("players/boss", { name: "Boss", stats: { played: 1 } });   // the admin's own account, left out of the account figures
+  const s = await h.adminStats({ excludeEmails: ["boss@example.com"] });
+  assert.equal(s.totals.players, 4);
+  assert.equal(s.totals.accounts, 2, "a and c; the guest and the admin aren't counted");
+  assert.equal(s.totals.accountsPlayed, 1, "c started but never finished");
+  assert.equal(s.totals.playedVisitors, 2, "a and b finished; the admin's hand isn't counted");
+  assert.equal(s.accountsBefore, 2, "no sign-up times recorded, so both are in the starting total");
+  assert.equal(s.accountsByDay[0].date, s.accountsFrom);
+  assert.equal(s.accountsByDay.at(-1).n, 2);
   assert.equal(s.newPlayers.length, 30);
-  assert.equal(s.newPlayers.at(-1).n, 3, "all three created today");
+  assert.equal(s.newPlayers.at(-1).n, 3, "a, b and c created today");
   const h1 = s.hands.find(x => x.hand === 1);
   assert.equal(h1.started, 3);
   assert.equal(h1.finished, 2);
@@ -380,4 +386,26 @@ test("if Auth can't be reached, an anonymous token is treated as a guest", async
   await code(h2.joinGroup({ code: g.code }, "x", { firebase: { sign_in_provider: "anonymous" } }), "failed-precondition");
   await h2.joinGroup({ code: g.code }, "y", { firebase: { sign_in_provider: "password" } });   // email link: no lookup needed
   assert.equal(db.store.get(`groups/${g.groupId}`).memberCount, 2);
+});
+
+test("admin stats: accounts and groups over time", async () => {
+  const { db, h, tick } = setup();
+  db.store.set("config/app", { launchDate: "2026-10-30" });
+  await h.getMe({}, "a");
+  await h.claimScores({}, "a");                 // signs up: the sign-up time is recorded once
+  const at = db.store.get("players/a").accountAt;
+  assert.ok(at, "accountAt recorded");
+  await h.claimScores({}, "a");
+  assert.equal(db.store.get("players/a").accountAt.ms, at.ms, "not overwritten");
+  await h.getMe({}, "c");
+  db.store.set("players/c", { ...db.store.get("players/c"), listed: true });   // signed up before times were recorded
+  await h.createGroup({ name: "Day one" }, "a");
+  tick(86400e3);
+  await h.createGroup({ name: "Day two" }, "c");
+  const s = await h.adminStats({ excludeEmails: ["boss@example.com"] });
+  assert.equal(s.accountsBefore, 1, "c");
+  assert.equal(s.accountsByDay.at(-1).n, 2, "c plus a");
+  const g = s.groupsByDay;
+  assert.equal(g[0].date, "2026-10-30");
+  assert.deepEqual(g.slice(-2).map(x => x.n), [1, 2]);
 });
