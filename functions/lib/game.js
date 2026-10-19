@@ -97,3 +97,11 @@ export const FREE_GROUP_CAP = 10;
 export const GROUP_SYMBOLS = ["spade", "heart", "diamond", "club", "joker", "crown", "star", "dice", "trophy", "target",
   "beer", "wine", "coffee", "brain", "owl", "fire", "bolt", "octopus", "fox", "bee"];
 export const cleanSymbol = s => (GROUP_SYMBOLS.includes(s) ? s : null);
+
+/** A bonus round's contribution to roundStats/{hand}.rounds[slot]. `add` is FieldValue.increment live, or plain addition in a recount. */
+export function bonusTally(x, add) {
+  return {
+    bonusPlayed: add(1), bonusCorrect: add(x.correct), bonusTime: add(x.serverMs ?? 0),
+    bonusPairs: Object.fromEntries((x.marks || []).map((m, i) => [i, add(m ? 1 : 0)])),
+  };
+}

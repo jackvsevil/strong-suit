@@ -272,6 +272,9 @@ test("admin stats: per-hand starts and finishes, per-round skips and per-pair re
   assert.equal(h1.rounds[4].played, 1);                  // only b played slot 4
   assert.equal(h1.rounds[4].bonusPlayed, 1);
   assert.equal(h1.rounds[4].bonusCorrect, 2);
+  assert.equal(typeof h1.rounds[4].bonusTime, "number", "bonus time is kept");
+  assert.deepEqual(h1.rounds[4].pairs.map(p => p.bonusCorrect), [1, 1, 0, 0, 0, 0], "a got the first two pairs of the bonus");
+  assert.deepEqual([s.families.Language.bonusRounds, s.families.Language.bonusCorrect], [1, 2], "bonus counts in subject figures");
   assert.equal(h1.rounds[1].pairs.length, 6);
   assert.equal(h1.rounds[1].pairs[0].answer, "A1.0");
   assert.equal(h1.rounds[1].pairs.reduce((t, p) => t + p.correct, 0), h1.rounds[1].correct);

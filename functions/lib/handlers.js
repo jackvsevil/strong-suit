@@ -191,8 +191,11 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid, token) => {
     rs(out.strongest).strongest = inc(1);
     b.set(db.doc(`roundStats/${hand}`), { finished: inc(1), totalScore: inc(f.score), awareTotal: inc(f.aware), rounds }, { merge: true });
   } else if (key === "bonus") {
-    b.set(db.doc(`categoryStats/${out.result.categoryId}`), { bonusPlayed: inc(1), bonusCorrect: inc(out.result.correct) }, { merge: true });
-    b.set(db.doc(`roundStats/${hand}`), { bonusPlayed: inc(1), rounds: { [out.result.slot]: { bonusPlayed: inc(1), bonusCorrect: inc(out.result.correct) } } }, { merge: true });
+    const x = out.result;
+    b.set(db.doc(`categoryStats/${x.categoryId}`), { bonusPlayed: inc(1), bonusCorrect: inc(x.correct) }, { merge: true });
+    // the admin page counts bonus plays in its round, pair and subject figures, so keep the same detail as for scored rounds
+    b.set(db.doc(`roundStats/${hand}`), { bonusPlayed: inc(1), rounds: { [x.slot]: G.bonusTally(x, inc) } }, { merge: true });
+    if (G.countsInStats(x.family)) b.set(db.doc("stats/families"), { families: { [x.family]: { bonusRounds: inc(1), bonusCorrect: inc(x.correct) } } }, { merge: true });
   }
   await b.commit().catch(e => console.error("tally update failed", hand, uid, e));
   const res = { result: out.result };
@@ -465,8 +468,8 @@ const adminStats = async ({ excludeEmails = [] } = {}) => {
         return {
           slot: c.slot, label: c.label, family: c.family, categoryId: c.categoryId,
           played: x.played || 0, correct: x.correct || 0, time: x.time || 0, skipped: x.skipped || 0, strongest: x.strongest || 0,
-          bonusPlayed: x.bonusPlayed || 0, bonusCorrect: x.bonusCorrect || 0,
-          pairs: open && k[c.slot] ? k[c.slot].prompts.map((pr, i) => ({ prompt: pr, answer: k[c.slot].answers[i], correct: (x.pairs || {})[i] || 0 })) : [],
+          bonusPlayed: x.bonusPlayed || 0, bonusCorrect: x.bonusCorrect || 0, bonusTime: x.bonusTime || 0,
+          pairs: open && k[c.slot] ? k[c.slot].prompts.map((pr, i) => ({ prompt: pr, answer: k[c.slot].answers[i], correct: (x.pairs || {})[i] || 0, bonusCorrect: (x.bonusPairs || {})[i] || 0 })) : [],
         };
       }),
     };

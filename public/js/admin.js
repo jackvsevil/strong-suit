@@ -104,6 +104,12 @@ const table = (head, rows) => rows.length
 const meter = (v, cls = "") => (v === null ? "" : `<span class="meter ${cls}"><i style="width:${v}%"></i></span>`);
 const small = n => (n < MIN_N ? ` <span class="low" title="Small sample">(n=${n})</span>` : ` <span class="muted">(n=${n})</span>`);
 const roundName = r => (FAMILY_EMOJI[r.family] || "") + " " + esc(r.label);
+// Every attempt at a round counts, whether it was played for points or as the bonus after being skipped.
+const tries = r => r.played + (r.bonusPlayed || 0);
+const right = r => r.correct + (r.bonusCorrect || 0);
+const timeAll = r => r.time + (r.bonusTime || 0);
+const pairRight = p => p.correct + (p.bonusCorrect || 0);
+const avgTime = r => (tries(r) ? Math.round(timeAll(r) / tries(r) / 1000) + "s" : "–");
 
 /* ---------- the page ---------- */
 function render() {
@@ -126,21 +132,21 @@ function render() {
   drawGrowth(d);
   drawSources(d.sources);
 
-  const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct(x.correct || 0, (x.rounds || 0) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
+  const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct((x.correct || 0) + (x.bonusCorrect || 0), ((x.rounds || 0) + (x.bonusRounds || 0)) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
     .sort((a, b) => (a.right ?? 101) - (b.right ?? 101));
   $("tbFams").innerHTML = table([{ t: "Subject" }, { t: "Right", n: 1 }, { t: "Skipped", n: 1 }],
     fams.map(x => [(FAMILY_EMOJI[x.f] || "") + " " + esc(x.f) + small(x.dealt), fmtPct(x.right) + meter(x.right), fmtPct(x.skip) + meter(x.skip, "amber")]));
 
   const rounds = open.flatMap(h => h.rounds.map(r => ({ ...r, hand: h.hand, finished: h.finished })));
-  const hard = rounds.filter(r => r.played).sort((a, b) => a.correct / a.played - b.correct / b.played).slice(0, 10);
+  const hard = rounds.filter(r => tries(r)).sort((a, b) => right(a) / tries(a) - right(b) / tries(b)).slice(0, 10);
   $("tbHard").innerHTML = table([{ t: "Hand" }, { t: "Round" }, { t: "Avg /6", n: 1 }, { t: "Avg time", n: 1 }],
-    hard.map(r => ["#" + r.hand, roundName(r) + small(r.played), avg1(r.correct, r.played), Math.round(r.time / r.played / 1000) + "s"]));
+    hard.map(r => ["#" + r.hand, roundName(r) + small(tries(r)), avg1(right(r), tries(r)), avgTime(r)]));
   const skipped = rounds.filter(r => r.finished).map(r => ({ ...r, rate: pct(r.skipped, r.finished), top: pct(r.strongest, r.finished) }))
     .sort((a, b) => b.rate - a.rate || a.top - b.top).slice(0, 10);
   $("tbSkip").innerHTML = table([{ t: "Hand" }, { t: "Round" }, { t: "Skipped", n: 1 }, { t: "Strongest", n: 1 }],
     skipped.map(r => ["#" + r.hand, roundName(r) + small(r.finished), fmtPct(r.rate) + meter(r.rate, "amber"), fmtPct(r.top)]));
 
-  const pairs = rounds.filter(r => r.played).flatMap(r => r.pairs.map(p => ({ ...p, hand: r.hand, round: r, n: r.played, rate: pct(p.correct, r.played) })))
+  const pairs = rounds.filter(r => tries(r)).flatMap(r => r.pairs.map(p => ({ ...p, hand: r.hand, round: r, n: tries(r), rate: pct(pairRight(p), tries(r)) })))
     .sort((a, b) => a.rate - b.rate || b.n - a.n).slice(0, 20);
   $("tbPairs").innerHTML = '<div class="pairs">' + table([{ t: "Pair" }, { t: "Round" }, { t: "Right", n: 1 }],
     pairs.map(p => [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", "#" + p.hand + " " + roundName(p.round), fmtPct(p.rate) + small(p.n) + meter(p.rate)])) + "</div>";
@@ -179,14 +185,18 @@ function drawHand() {
   const h = data.hands.find(x => String(x.hand) === $("handPick").value);
   if (!h) { $("handDetail").innerHTML = '<p class="muted small">No hands open yet.</p>'; return; }
   let s = `<p class="muted small">${h.started} started · ${h.finished} finished · ${h.bonusPlayed} played the bonus` +
-    (h.finished ? ` · average ${(h.totalScore / h.finished).toFixed(1)}/60` : "") + "</p>";
+    (h.finished ? ` · average score ${(h.totalScore / h.finished).toFixed(1)}/60` : "") + (h.awareTotal && h.finished ? ` · self-awareness ${Math.round(h.awareTotal / h.finished)}%` : "") + "</p>";
+  // one row per round, in the order dealt; skipped and strongest are shares of finished players
+  s += '<div class="tablewrap section summary">' + table(
+    [{ t: "Round" }, { t: "Played", n: 1 }, { t: "Bonus", n: 1 }, { t: "Skipped", n: 1 }, { t: "Strongest", n: 1 }, { t: "Avg /6", n: 1 }, { t: "Avg time", n: 1 }],
+    h.rounds.map(r => [roundName(r), r.played, r.bonusPlayed || 0, fmtPct(pct(r.skipped, h.finished)), fmtPct(pct(r.strongest, h.finished)),
+      avg1(right(r), tries(r)) + (tries(r) && tries(r) < MIN_N ? small(tries(r)) : ""), avgTime(r)])) + "</div>";
+  s += '<p class="muted small">Played: as one of the four scored rounds. Bonus: played after skipping it. Avg /6 and time count both.</p>';
   h.rounds.forEach(r => {
-    s += `<div class="section"><h2 style="font-size:16px">${roundName(r)}</h2><p class="muted small">` +
-      `Played ${r.played} · avg ${avg1(r.correct, r.played)}/6` + (r.played ? ` · ${Math.round(r.time / r.played / 1000)}s` : "") +
-      ` · skipped by ${fmtPct(pct(r.skipped, h.finished))} · strongest for ${fmtPct(pct(r.strongest, h.finished))}` +
-      (r.bonusPlayed ? ` · bonus ${avg1(r.bonusCorrect, r.bonusPlayed)}/6 (${r.bonusPlayed})` : "") + "</p>";
-    if (r.played) s += '<div class="tablewrap pairs">' + table([{ t: "Pair" }, { t: "Right", n: 1 }],
-      r.pairs.map(p => { const v = pct(p.correct, r.played); return [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", fmtPct(v) + meter(v)]; })) + "</div>";
+    s += `<div class="section"><h2 style="font-size:16px">${roundName(r)}</h2>`;
+    if (tries(r)) s += '<div class="tablewrap pairs">' + table([{ t: "Pair" }, { t: "Right", n: 1 }],
+      r.pairs.map(p => { const v = pct(pairRight(p), tries(r)); return [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", fmtPct(v) + meter(v)]; })) + "</div>";
+    else s += '<p class="muted small">Not played yet.</p>';
     s += "</div>";
   });
   $("handDetail").innerHTML = s;
@@ -202,13 +212,15 @@ function demoStats() {
     return {
       hand: i + 1, date, open: true, started, finished, bonusPlayed: Math.floor(finished * 0.4), totalScore: finished * (25 + r() * 15), awareTotal: finished * (70 + r() * 20), tally: {},
       rounds: h.categories.map((c, slot) => {
-        const skipped = Math.floor(finished * r() * 0.45), played = finished - skipped, pairs = h.rounds[slot].prompts.map((p, k) => ({ prompt: p, answer: h.rounds[slot].answers[k], correct: Math.floor(played * (0.2 + r() * 0.75)) }));
-        return { ...c, played, skipped, strongest: Math.floor(finished * r() * 0.4), correct: pairs.reduce((t, p) => t + p.correct, 0), time: played * (15000 + r() * 25000), bonusPlayed: Math.floor(skipped * 0.4), bonusCorrect: Math.floor(skipped * 0.4 * 3), pairs };
+        const skipped = Math.floor(finished * r() * 0.45), played = finished - skipped, bonusPlayed = Math.floor(skipped * 0.4);
+        const pairs = h.rounds[slot].prompts.map((p, k) => ({ prompt: p, answer: h.rounds[slot].answers[k], correct: Math.floor(played * (0.2 + r() * 0.75)), bonusCorrect: Math.floor(bonusPlayed * (0.1 + r() * 0.7)) }));
+        return { ...c, played, skipped, strongest: Math.floor(finished * r() * 0.4), correct: pairs.reduce((t, p) => t + p.correct, 0), time: played * (15000 + r() * 25000),
+          bonusPlayed, bonusCorrect: pairs.reduce((t, p) => t + p.bonusCorrect, 0), bonusTime: bonusPlayed * (20000 + r() * 25000), pairs };
       }),
     };
   });
   const families = {};
-  hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
+  hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; f.bonusRounds = (f.bonusRounds || 0) + x.bonusPlayed; f.bonusCorrect = (f.bonusCorrect || 0) + x.bonusCorrect; }));
   const today = Date.now();
   return {
     launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, accounts: 58, accountsPlayed: 55, playedVisitors: 301 }, families, hands,
