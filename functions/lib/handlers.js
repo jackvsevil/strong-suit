@@ -431,6 +431,37 @@ const groupMonth = (async ({ groupId, month }, uid) => {
   };
 });
 
+// An invite, before joining: guests (and anyone else with the code) can see the group's name and symbol, and,
+// once they've finished the hand themselves, each member's score and time for it, so they can see where they'd rank.
+// Names, scores and times only: no IDs, picks, rankings or subject stats. Anyone with the code could join and see more.
+const groupPreview = (async ({ code, hand }, uid) => {
+  needHand(hand);
+  const c = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (c.length !== 6) fail("invalid-argument", "Group codes are six characters.");
+  const cd = await db.doc(`groupCodes/${c}`).get();
+  if (!cd.exists) fail("not-found", "That invite code doesn't work any more.");
+  const gref = db.doc(`groups/${cd.get("groupId")}`);
+  const [g, ms, h, mine] = await Promise.all([
+    gref.get(), gref.collection("members").get(), db.doc(`hands/${hand}`).get(), db.doc(`players/${uid}/plays/${hand}`).get(),
+  ]);
+  if (!g.exists) fail("not-found", "That invite code doesn't work any more.");
+  const out = {
+    code: c, name: g.get("name"), symbol: g.get("symbol") || "club",
+    memberCount: g.get("memberCount"), full: g.get("memberCount") >= g.get("cap"),
+    member: ms.docs.some(d => d.id === uid), hand, finished: false,
+  };
+  if (out.member || !h.exists || h.get("opensAt").toMillis() > now() || !(mine.exists && mine.get("status") === "done")) return out;
+  const plays = await Promise.all(ms.docs.map(d => db.doc(`players/${d.id}/plays/${hand}`).get()));
+  out.finished = true;
+  out.members = ms.docs.map((d, i) => {
+    const p = plays[i].exists ? plays[i].data() : null;
+    const row = { name: d.get("name"), status: p ? p.status : null };
+    if (p && p.status === "done") Object.assign(row, { score: p.score, time: p.time ?? null });
+    return row;
+  });
+  return out;
+});
+
 /* ---------- Admin page: totals only, plus per-round and per-pair results (the caller is checked in index.js) ---------- */
 // excludeEmails: the admin's own sign-in addresses, left out of the account figures.
 const adminStats = async ({ excludeEmails = [] } = {}) => {
@@ -617,5 +648,5 @@ const deleteAccount = (async (_, uid) => {
   return { ok: true };
 });
 
-  return { startHand, startRound, submitRound, setName, getMe, claimScores, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, adminStats, deleteAccount };
+  return { startHand, startRound, submitRound, setName, getMe, claimScores, createGroup, joinGroup, leaveGroup, updateGroup, removeMember, newGroupCode, groupDay, groupMonth, groupPreview, adminStats, deleteAccount };
 }
