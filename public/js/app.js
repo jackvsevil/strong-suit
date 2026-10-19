@@ -122,6 +122,7 @@ async function renderHome() {
     ? '<span><b>' + stats.played + "</b> played</span><span><b>" + (stats.streak && stats.lastHand >= S.n - 1 ? stats.streak : 0) + "</b> day streak</span><span><b>" + Math.round(stats.totalScore / stats.played) + "</b> average</span>"
     : "";
   $("homeStats").hidden = !stats.played;
+  $("homeInvite").hidden = true;
   if (!launch || S.n < 1) {
     $("homeTitle").textContent = "Coming soon";
     $("homeSub").textContent = launch ? "Hand #1 opens on " + fmtDay(dateOf(launch, 1)) + ". Try the practice hand while you wait." : "The first hand is on its way. Try the practice hand while you wait.";
@@ -143,6 +144,12 @@ async function renderHome() {
   } else {
     $("homeSub").textContent = "Five categories. Skip one, then play the rest for rising stakes.";
     bar([{ label: "Play hand #" + S.n, onClick: () => openHand(S.n) }]);
+  }
+  const inv = S.hand && api.account().anonymous ? invite() : null;
+  if (inv) {
+    $("hiTitle").innerHTML = (inv.symbol ? symHtml(inv.symbol) + " " : "") + "You've been invited to " + (inv.name ? esc(inv.name) : "a group");
+    $("hiText").textContent = S.play && S.play.status === "done" ? "See today's result to find out where you'd rank." : "Play today's hand first, then see where you'd rank in the group.";
+    $("homeInvite").hidden = false;
   }
   show("home");
 }
@@ -484,6 +491,7 @@ function renderResults() {
   $("bonusText").textContent = "Try " + skc.label + ", the category you skipped, to see if you were right to skip it. It won't change your score.";
   $("percentile").hidden = true;
   $("saveCard").hidden = true;
+  $("inviteCard").hidden = true;
   $("shareText").hidden = $("nextNote").hidden = G.tut;
   if (G.tut) {
     coach(p.bonus ? "That's the whole game. Ready for the real thing?"
@@ -496,7 +504,8 @@ function renderResults() {
   bar([S.from === "hands" ? { label: "Back", ghost: true, onClick: renderHands } : { label: "Home", ghost: true, onClick: renderHome },
        { label: "Share result", onClick: () => share(text) }]);
   show("results");
-  maybeSaveCard().catch(() => {});
+  const inv = api.account().anonymous ? invite() : null;
+  (inv && inv.skip !== p.hand ? maybeInviteCard(p, inv) : maybeSaveCard()).catch(() => {});
   api.leaderboard(p.hand).then(lb => {
     const guest = api.account().anonymous;   // guests aren't on the leaderboard, so they're compared with everyone on it
     const s = lb.summary, others = s ? s.players - (guest ? 0 : 1) : 0;
@@ -505,7 +514,7 @@ function renderResults() {
     $("percentile").innerHTML = guest
       ? "You'd beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players on today's leaderboard. Average " + Math.round(s.totalScore / s.players) + ". Create an account to join them."
       : "You beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
-    $("percentile").hidden = false;
+    $("percentile").hidden = !$("inviteCard").hidden;   // the invite card's table takes its place
   }).catch(() => {});
 }
 /* From a guest's third finished hand: one card asking them to create an account before a cleared browser loses their history.
@@ -521,6 +530,40 @@ async function maybeSaveCard() {
   $("saveBtn").onclick = () => toSignin();
   $("saveLater").onclick = () => { try { localStorage.setItem(SAVE_LATER_KEY, String(Date.now() + 7 * 86400000)); } catch (_) {} $("saveCard").hidden = true; };
   $("saveCard").hidden = false;
+}
+/* A guest who came from a friend's invite: once they've finished a hand, show where they'd rank in that group,
+   with the one sign-up ask that joins them. It takes the place of the save card. */
+async function maybeInviteCard(p, inv) {
+  let pv;
+  try { pv = await api.groupPreview(inv.code, p.hand); }
+  catch (e) { if (e.code === "not-found") dropInvite(); return maybeSaveCard(); }   // a code that's stopped working: back to the usual nudge
+  if ($("results").hidden || !G || G.play !== p || !api.account().anonymous) return;
+  if (pv.member) return dropInvite();
+  keepInvite(inv.code, pv.name, pv.symbol, inv.until);   // the name or symbol may have changed
+  if (!pv.finished) return maybeSaveCard();
+  const me = api.account().uid;
+  const rows = pv.members.map((m, i) => {
+    const done = m.status === "done";
+    return { uid: "m" + i, name: m.name, value: done ? m.score : null, time: done ? m.time : null, none: m.status === "playing" ? "playing" : "not played" };
+  });
+  const mine = { uid: me, name: (S.me && S.me.name) || "You", value: p.score, time: p.time ?? null };
+  rows.push(mine);
+  rows.sort(byValue);
+  const done = rows.filter(r => r.value !== null);
+  const rank = 1 + done.filter(r => r !== mine && (r.value > mine.value || (r.value === mine.value && (r.time ?? Infinity) < (mine.time ?? Infinity)))).length;
+  const when = p.hand === S.n ? " today" : " on Hand #" + p.hand;
+  $("icTitle").innerHTML = symHtml(pv.symbol) + " " + (done.length < 2
+    ? "Nobody in " + esc(pv.name) + " has finished" + when + " yet"
+    : "You'd be " + ordinal(rank) + " of " + done.length + " in " + esc(pv.name) + when);
+  $("icText").textContent = pv.full
+    ? "The group is full right now, so you can't join it yet. Ask whoever invited you to make room."
+    : "Create a free account to join. It takes a moment, and the hands you've already played come with you.";
+  $("icList").innerHTML = lbRows(rows);
+  $("icJoin").hidden = pv.full;
+  $("icJoin").onclick = () => toSignin(inv.code);
+  $("icLater").onclick = () => { keepInvite(inv.code, pv.name, pv.symbol, inv.until, p.hand); $("inviteCard").hidden = true; };
+  $("inviteCard").hidden = false;
+  $("percentile").hidden = true;   // the group's table says it better, with one sign-up ask
 }
 function openReview(result) {
   fillReveal(result);
@@ -963,7 +1006,7 @@ async function joinGroup(code) {
   if (!code) return toast("Enter a group code.");
   if (api.account().anonymous) return toSignin(code);
   busy(true);
-  try { const g = await api.joinGroup(code); $("joinCode").value = ""; toast("You're in " + g.name); await refreshMe(); renderGroup(g.groupId); }
+  try { const g = await api.joinGroup(code); $("joinCode").value = ""; dropInvite(); toast("You're in " + g.name); await refreshMe(); renderGroup(g.groupId); }
   catch (e) { toast(e.message); } finally { busy(false); }
 }
 
@@ -1020,6 +1063,31 @@ async function editName() {
 }
 /* Guests create an account before joining groups. `join` is a group code to join straight after signing up. */
 let pendingJoin = null;
+
+/* A guest's invite from a friend's ?join= link, held in this browser for 7 days (or until they join) so they can
+   play first and be asked once they've seen where they'd rank. `skip` is a hand whose results card they've said Not now to. */
+const INVITE_KEY = "ss_invite", INVITE_DAYS = 7;
+let inviteMem = null;   // if browser storage is blocked, it lasts for this visit only
+function invite() {
+  let v = inviteMem;
+  try { v = JSON.parse(localStorage.getItem(INVITE_KEY)) || v; } catch (_) {}
+  if (v && v.until > Date.now() && /^[A-Z0-9]{6}$/.test(v.code)) return v;
+  if (v) dropInvite();
+  return null;
+}
+function keepInvite(code, name, symbol, until, skip) {
+  inviteMem = { code: String(code).toUpperCase().replace(/[^A-Z0-9]/g, ""), name: name || null, symbol: symbol || null, until: until || Date.now() + INVITE_DAYS * 86400000, skip: skip ?? null };
+  try { localStorage.setItem(INVITE_KEY, JSON.stringify(inviteMem)); } catch (_) {}
+}
+function dropInvite() { inviteMem = null; try { localStorage.removeItem(INVITE_KEY); } catch (_) {} }
+// Signed up some other way while an invite was waiting (or came back from an email link without one): ask once, then let it go.
+async function offerStoredInvite() {
+  const inv = invite();
+  if (!inv || api.account().anonymous) return false;
+  dropInvite();
+  if (await ask({ title: "Join " + (inv.name || "this group") + "?", text: "You were invited with code " + inv.code + ". Members will see your name, scores and subject stats, and, once they've played a hand, your answers.", ok: "Join", cancel: "Not now" })) await joinGroup(inv.code);
+  return true;
+}
 async function toSignin(join) {
   if (join) pendingJoin = join;
   await renderProfile();
@@ -1034,6 +1102,7 @@ async function signInGoogle() {
     await refreshMe();
     if (pendingJoin && !api.account().anonymous) { const c = pendingJoin; pendingJoin = null; return joinGroup(c); }
     renderProfile();
+    offerStoredInvite();
   } catch (e) { toast(e.message, 4000); }
 }
 async function signInEmail() {
@@ -1047,6 +1116,7 @@ async function signInEmail() {
       toast("Demo mode: no email is sent. You're signed in as " + email + " to try it out.", 5000);
       if (pendingJoin) { const c = pendingJoin; pendingJoin = null; return joinGroup(c); }
       renderProfile();
+      offerStoredInvite();
     }
     else toast("Check your email for a sign-in link.", 4000);
   }
@@ -1098,11 +1168,22 @@ async function boot() {
     history.replaceState(null, "", location.pathname + (api.demo ? "?demo=1" : ""));
     const guest = api.account().anonymous;
     const what = "Members will see your name, scores and subject stats, and, once they've played a hand, your answers.";
-    if (guest) {   // sign up first, then they're joined straight away (Google) or asked again when the email link brings them back
-      if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". Create a free account to join. It takes a moment, and any scores you have come with you. " + what, ok: "Create an account" })) await toSignin(join);
-    } else if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". " + what, ok: "Join" })) await joinGroup(join);
-    return;
-  }
+    if (guest) {   // play first: hold the invite, and ask them to sign up once they've seen where they'd rank
+      try {
+        const pv = await api.groupPreview(join, Math.max(S.n || 1, 1));
+        if (pv.member) toast("You're already in " + pv.name + ".");
+        else keepInvite(pv.code, pv.name, pv.symbol);
+      } catch (e) {
+        if (["not-found", "invalid-argument"].includes(e.code)) toast(e.message, 4000);
+        else keepInvite(join);   // couldn't check it just now: hold it anyway, and it's checked again after their hand
+      }
+      if (!$("home").hidden) await renderHome();   // show the invite note
+    } else {
+      dropInvite();
+      if (await ask({ title: "Join this group?", text: "Code " + join.toUpperCase() + ". " + what, ok: "Join" })) await joinGroup(join);
+      return;
+    }
+  } else if (await offerStoredInvite()) return;
   let seen = false; try { seen = localStorage.getItem("ss_seen_howto") === "1"; } catch (_) {}
   if (!seen) openHow();   // first visit: how to play; otherwise stay on the home screen with its Play button
 }

@@ -231,6 +231,40 @@ test("group pages: day table, picks only after you've played, month and all-time
   assert.equal(db.store.get("players/b/months/2026-11"), undefined);
 });
 
+test("invite preview: name before playing, members' scores only once you've finished the hand", async () => {
+  const { h, guests } = setup();
+  const g = await h.createGroup({ name: "Pub quiz", symbol: "owl" }, "a");
+  await h.joinGroup({ code: g.code }, "b");
+  guests.add("g");
+  await code(h.groupPreview({ code: "nope", hand: 1 }, "g"), "invalid-argument");
+  await code(h.groupPreview({ code: "ZZZZZZ", hand: 1 }, "g"), "not-found");
+  await code(h.groupPreview({ code: g.code, hand: 0 }, "g"), "invalid-argument");
+
+  await playHand(h, "a", [0, 1, 2, 3, 4], [6, 6, 6, 6]);
+  let p = await h.groupPreview({ code: g.code.toLowerCase(), hand: 1 }, "g");
+  assert.equal(p.name, "Pub quiz"); assert.equal(p.symbol, "owl");
+  assert.equal(p.memberCount, 2); assert.equal(p.full, false); assert.equal(p.member, false);
+  assert.equal(p.finished, false);
+  assert.equal(p.members, undefined, "no scores before you've played");
+  assert.equal((await h.groupPreview({ code: g.code, hand: 2 }, "g")).members, undefined);   // not open yet
+
+  await playHand(h, "g", [4, 3, 2, 1, 0], [1, 2, 3, 4]);
+  p = await h.groupPreview({ code: g.code, hand: 1 }, "g");
+  assert.equal(p.finished, true);
+  assert.equal(p.members.length, 2);
+  const ra = p.members.find(m => m.score === 60);
+  assert.ok(ra && typeof ra.time === "number" && ra.status === "done");
+  assert.deepEqual(Object.keys(ra).sort(), ["name", "score", "status", "time"], "names, scores and times only");
+  const rb = p.members.find(m => m.status !== "done");   // b hasn't played
+  assert.deepEqual(Object.keys(rb).sort(), ["name", "status"]); assert.equal(rb.status, null);
+
+  const m = await h.groupPreview({ code: g.code, hand: 1 }, "a");   // members are told so, and get nothing more
+  assert.equal(m.member, true); assert.equal(m.members, undefined);
+
+  await h.newGroupCode({ groupId: g.groupId }, "a");   // an old code stops working here too
+  await code(h.groupPreview({ code: g.code, hand: 1 }, "g"), "not-found");
+});
+
 test("offensive or official-looking names are refused; ordinary ones pass", async () => {
   const { db, h } = setup();
   for (const bad of ["fuck", "f u c k", "B1tch", "Bell End", "Admin", "Strong Suit", "H1tler"])

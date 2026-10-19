@@ -154,6 +154,7 @@ async function firebaseBackend(config, source) {
     async group(gid) { const g = await get(`groups/${gid}`); return g && { id: gid, ...g }; },
     groupDay: (gid, n) => call("groupDay")({ groupId: gid, hand: n }),
     groupMonth: (gid, month) => call("groupMonth")({ groupId: gid, month }),
+    groupPreview: (code, n) => call("groupPreview")({ code, hand: n }),
     // Wakes the group functions while the player is still on the Groups list, so the group page doesn't wait
     // for a cold start. At most once every 5 minutes; failures don't matter.
     warmGroups() {
@@ -241,6 +242,8 @@ function demoBackend() {
     if (p && p.status === "done" && st.email) list.push({ uid: "me", name: st.me.name, score: p.score, time: p.time, aware: p.aware });   // guests aren't listed
     return list;
   };
+  // an invite to try in demo mode: ?demo=1&join=PUBQZ2
+  const DEMO_INVITE = { code: "PUBQZ2", name: "The Pub Quizzers", symbol: "beer", members: ["bot0", "bot2", "bot3", "bot5", "bot7"] };
   const guestError = () => Object.assign(new Error("Create a free account to join groups. Your scores so far come with you."), { code: "failed-precondition" });
   const code = () => Array.from({ length: 6 }, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
   return {
@@ -335,8 +338,26 @@ function demoBackend() {
     async removeMember(id, uid) { const g = st.groups[id]; g.members = g.members.filter(m => m !== uid); g.memberCount = g.members.length; save(); return { ok: true }; },
     async newGroupCode(id) { st.groups[id].code = code(); save(); return { code: st.groups[id].code }; },
     groupMembers: async id => st.groups[id].members.map(uid => ({ uid, name: nameOf(uid) })),
+    async groupPreview(c, n) {
+      c = String(c || "").toUpperCase();
+      const own = Object.values(st.groups).find(g => g.code === c);
+      const g = own || (c === DEMO_INVITE.code ? { ...DEMO_INVITE, memberCount: DEMO_INVITE.members.length, cap: 10 } : null);
+      if (!g) throw Object.assign(new Error("That invite code doesn't work any more."), { code: "not-found" });
+      const member = g.members.includes("me"), mine = st.plays[n];
+      const out = { code: c, name: g.name, symbol: g.symbol, memberCount: g.memberCount, full: g.memberCount >= g.cap, member, hand: n, finished: false };
+      if (member || !hands_[n] || !(mine && mine.status === "done")) return out;
+      out.finished = true;
+      out.members = g.members.map(uid => {
+        const p = playOf(uid, n), row = { name: nameOf(uid), status: p ? p.status : null };
+        if (p && p.status === "done") Object.assign(row, { score: p.score, time: p.time ?? null });
+        return row;
+      });
+      return out;
+    },
     async joinGroup(c) {
       if (!st.email) throw guestError();
+      if (String(c).toUpperCase() === DEMO_INVITE.code && !Object.values(st.groups).some(g => g.code === DEMO_INVITE.code))
+        st.groups["gdemo"] = { name: DEMO_INVITE.name, symbol: DEMO_INVITE.symbol, code: DEMO_INVITE.code, memberCount: DEMO_INVITE.members.length, cap: 10, ownerUid: "bot0", members: DEMO_INVITE.members.slice() };
       const id = Object.keys(st.groups).find(k => st.groups[k].code === String(c).toUpperCase());
       if (!id) throw Object.assign(new Error("No group has that code."), { code: "not-found" });
       if (!st.me.groupIds.includes(id)) { st.me.groupIds.push(id); st.groups[id].members.push("me"); st.groups[id].memberCount++; }

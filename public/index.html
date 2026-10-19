@@ -325,6 +325,12 @@ body.tut .wrap{padding-bottom:230px}
 #saveCard .muted{color:#15213B;opacity:.85}
 #saveCard #saveBtn{background:#1E3B70;color:#fff}
 #saveCard #saveLater{background:transparent;color:#15213B;border-color:rgba(21,33,59,.45)}
+.card.invite{border-color:var(--back-2);box-shadow:inset 0 0 0 1px var(--back-2)}
+.card.invite b .sym{font-size:15px;margin-right:4px}
+.card.invite .lb{padding:8px 12px}
+/* sign-up cards: the two buttons share a row when they fit, and stack full width when they don't (small phones) */
+.card.invite .field,#saveCard .field{flex-wrap:wrap}
+.card.invite .field .btn,#saveCard .field .btn{flex:1 1 auto}
 .card.flash{box-shadow:0 0 0 3px var(--back-2);transition:box-shadow .3s}
 .backlink{align-self:flex-start;background:none;border:0;color:var(--back-2);font-weight:700;font-size:15px;cursor:pointer;padding:4px 0;margin-bottom:-6px}
 .linkbtn{background:none;border:0;color:var(--bad);font-weight:600;cursor:pointer;padding:8px 0;text-align:left}
@@ -423,6 +429,7 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
       <p class="date" id="homeDate"></p>
       <p class="muted" id="homeSub"></p>
     </div>
+    <div class="card invite" id="homeInvite" hidden><b id="hiTitle"></b><p class="small muted" id="hiText"></p></div>
     <div class="homestats" id="homeStats" hidden></div>
   </section>
 
@@ -466,6 +473,12 @@ details.fold[open] summary .chev{transform:rotate(90deg)}
   <section class="screen stack" id="results" hidden>
     <div class="total"><p class="muted" id="resTitle">Hand #1</p><div class="num" id="resNum">0<small>/60</small></div></div>
     <p class="small percentile" id="percentile" hidden></p>
+    <div class="card invite" id="inviteCard" hidden>
+      <b id="icTitle"></b>
+      <div class="list" id="icList"></div>
+      <p class="small muted" id="icText"></p>
+      <div class="field"><button class="btn" id="icJoin">Create an account to join</button><button class="btn ghost" id="icLater">Not now</button></div>
+    </div>
     <div class="aware"><div class="pct" id="awPct">100%</div><b>Self-awareness</b><p class="small muted" id="awText"></p></div>
     <p class="small muted" id="reviewHint" hidden>Tap a round to see your answers and the fun fact.</p>
     <div class="rows" id="resRows"></div>

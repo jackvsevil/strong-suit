@@ -29,6 +29,7 @@ export const removeMember = call(h.removeMember);
 export const newGroupCode = call(h.newGroupCode);
 export const groupDay = call(h.groupDay);
 export const groupMonth = call(h.groupMonth);
+export const groupPreview = call(h.groupPreview);
 // Admin page: only Google-verified addresses listed in ADMIN_EMAILS (the GitHub secret, written to functions/.env at deploy; empty means nobody).
 const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
 export const adminStats = onCall({ cors: true, memory: "512MiB", timeoutSeconds: 60 }, async req => {
