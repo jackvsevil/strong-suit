@@ -512,10 +512,9 @@ function renderResults() {
     if (!s || others < 1) return;
     const below = Object.entries(s.tally || {}).reduce((n, [sc, c]) => n + (+sc < p.score ? c : 0), 0);
     $("percentile").innerHTML = guest
-      ? "You'd beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players on today's leaderboard. Average " + Math.round(s.totalScore / s.players) + "." +
-        ($("inviteCard").hidden ? '<span id="pctNudge"> Create an account to join them.</span>' : "")   // the invite card makes its own ask
+      ? "You'd beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players on today's leaderboard. Average " + Math.round(s.totalScore / s.players) + ". Create an account to join them."
       : "You beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
-    $("percentile").hidden = false;
+    $("percentile").hidden = !$("inviteCard").hidden;   // the invite card's table takes its place
   }).catch(() => {});
 }
 /* From a guest's third finished hand: one card asking them to create an account before a cleared browser loses their history.
@@ -564,7 +563,7 @@ async function maybeInviteCard(p, inv) {
   $("icJoin").onclick = () => toSignin(inv.code);
   $("icLater").onclick = () => { keepInvite(inv.code, pv.name, pv.symbol, inv.until, p.hand); $("inviteCard").hidden = true; };
   $("inviteCard").hidden = false;
-  if ($("pctNudge")) $("pctNudge").remove();   // one sign-up ask at a time
+  $("percentile").hidden = true;   // the group's table says it better, with one sign-up ask
 }
 function openReview(result) {
   fillReveal(result);
