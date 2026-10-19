@@ -1,0 +1,29 @@
+# One-off: fill in the bonus-round detail (pairs, times, subjects) the admin page uses, for hands played
+# before 19 Oct 2026. Run it once the server change is live. Safe to run again. Results show on the run page.
+name: Recount bonus stats
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Just show what would change"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+  id-token: write   # keyless sign-in to Google Cloud
+jobs:
+  recount:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix scripts
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/310245852159/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-deploy@strong-suit.iam.gserviceaccount.com
+      - run: node scripts/recount-bonus.mjs
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}

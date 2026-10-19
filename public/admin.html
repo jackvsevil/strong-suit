@@ -59,6 +59,7 @@ tr:last-child td{border-bottom:0}
 .low{color:var(--bad);font-weight:600}
 select{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 8px}
 .pairs td:first-child{width:45%}
+.summary td:first-child{min-width:170px}
 .section{margin-top:12px}
 </style>
 </head>
@@ -81,15 +82,17 @@ select{border:1px solid var(--line);background:var(--card);border-radius:8px;pad
       <div class="card"><div><h2>Players per hand</h2><p class="muted small">Started a hand, and finished all four rounds.</p></div>
         <div class="legend"><span><i style="background:var(--soft)"></i>Started</span><span><i style="background:var(--back-2)"></i>Finished</span></div><div id="chPlayers"></div></div>
       <div class="card"><div><h2>Visitors per day</h2><p class="muted small">First visits, last 30 days, UTC. A guest profile is made as soon as the page loads, so this counts visitors, not players.</p></div><div id="chNew"></div></div>
-      <div class="card"><div><h2>Average score per hand</h2><p class="muted small">Out of 60, finished hands only.</p></div><div class="fill" id="chScore"></div></div>
-      <div class="card"><div><h2>Subjects</h2><p class="muted small">All hands so far: share of pairs right, and how often skipped when dealt.</p></div><div class="tablewrap" id="tbFams"></div></div>
+      <div class="card"><div><h2>Accounts over time</h2><p class="muted small" id="accNote">Running total of players with an account (Google or email link), by UTC day. Your own account isn't counted.</p></div><div id="chAccounts"></div></div>
+      <div class="card"><div><h2>Groups over time</h2><p class="muted small">Running total of groups, by the UTC day each was started. Groups that have since closed (everyone left) aren't counted.</p></div><div id="chGroups"></div></div>
+      <div class="card"><div><h2>Average score per hand</h2><p class="muted small">Out of 60, finished hands only. The bonus round never counts towards it.</p></div><div class="fill" id="chScore"></div></div>
+      <div class="card"><div><h2>Subjects</h2><p class="muted small">All hands so far: share of pairs right (bonus plays included), and how often skipped when dealt.</p></div><div class="tablewrap" id="tbFams"></div></div>
     </div>
     <div class="grid section">
-      <div class="card"><div><h2>Hardest rounds</h2><p class="muted small">Lowest average pairs right (out of 6) when played as one of the four rounds.</p></div><div class="tablewrap" id="tbHard"></div></div>
+      <div class="card"><div><h2>Hardest rounds</h2><p class="muted small">Lowest average pairs right (out of 6), counting bonus plays as well as scored rounds.</p></div><div class="tablewrap" id="tbHard"></div></div>
       <div class="card"><div><h2>Most skipped rounds</h2><p class="muted small">Share of finished players who skipped it, and who ranked it their strongest.</p></div><div class="tablewrap" id="tbSkip"></div></div>
     </div>
     <div class="card section"><div><h2>Where visitors came from</h2><p class="muted small">First visits in the last 30 days, by the link's <code>?ref=</code> tag or else the referring site. Direct covers typed addresses, bookmarks, most app links and sites that hide the referrer. A week on: finished a hand 7+ days after arriving, out of those who arrived 7+ days ago.</p></div><div class="tablewrap" id="tbSources"></div></div>
-    <div class="card section"><div><h2>Hardest pairs</h2><p class="muted small">Individual questions with the lowest share right. Worth checking for mistakes or ambiguity.</p></div><div class="tablewrap" id="tbPairs"></div></div>
+    <div class="card section"><div><h2>Hardest pairs</h2><p class="muted small">Individual questions with the lowest share right, bonus plays included. Worth checking for mistakes or ambiguity.</p></div><div class="tablewrap" id="tbPairs"></div></div>
     <div class="card section">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2>One hand in detail</h2><select id="handPick" aria-label="Hand"></select></div>
       <div id="handDetail"></div>

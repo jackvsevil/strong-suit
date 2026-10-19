@@ -61,7 +61,7 @@ function barChart(el, bars, { max, fmt = v => v, height = 190 } = {}) {
   const W = Math.max(300, Math.round(el.clientWidth || 600)), L = 34, B = 22, T = 8, iw = W - L - 4;   // drawn at real size, so text stays 11px
   const top = max ?? niceMax(Math.max(1, ...bars.map(b => Math.max(b.value, b.back || 0))));   // a given max is used as it is (e.g. 60)
   const H = height, ih = H - B - T;
-  const step = iw / bars.length, bw = Math.max(2, Math.min(28, step * 0.7)), every = Math.ceil(bars.length / 12);
+  const step = iw / bars.length, bw = Math.max(2, Math.min(28, step * 0.7)), every = Math.ceil(bars.length / Math.max(3, Math.min(12, Math.floor(iw / 56))));   // about one label per 56px, so dates don't overlap on a phone
   const y = v => T + ih - (v / top) * ih;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
   [0, 0.5, 1].forEach(f => { const v = top * f, yy = y(v); s += `<line x1="${L}" x2="${W - 4}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(Math.round(v * 10) / 10)}</text>`; });
@@ -75,6 +75,28 @@ function barChart(el, bars, { max, fmt = v => v, height = 190 } = {}) {
   });
   el.innerHTML = s + "</svg>";
 }
+/** A running total over days. points: [{ label, value, title }]. Drawn as a line over a pale area, with a dot per day when there are few. */
+function lineChart(el, points, { height = 190 } = {}) {
+  if (!points.length) { el.innerHTML = '<p class="muted small">Nothing yet.</p>'; return; }
+  const W = Math.max(300, Math.round(el.clientWidth || 600)), L = 34, R = 8, B = 22, T = 8, iw = W - L - R, H = height, ih = H - B - T;
+  const top = niceMax(Math.max(1, ...points.map(p => p.value)));
+  const n = points.length, step = n > 1 ? iw / (n - 1) : 0;
+  const x = i => (n > 1 ? L + step * i : L + iw / 2), y = v => T + ih - (v / top) * ih;
+  const every = Math.ceil(n / 8);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img">`;
+  [0, 0.5, 1].forEach(f => { const v = top * f, yy = y(v); s += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${Math.round(v * 10) / 10}</text>`; });
+  const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join("");
+  if (n > 1) s += `<path d="${line}L${x(n - 1).toFixed(1)},${T + ih}L${x(0).toFixed(1)},${T + ih}Z" fill="var(--soft)" opacity="0.55"/>`;
+  s += `<path d="${line}" fill="none" stroke="var(--back-2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  points.forEach((p, i) => {
+    const w = n > 1 ? step : iw;
+    s += `<g><title>${esc(p.title)}</title><rect x="${x(i) - w / 2}" y="${T}" width="${w}" height="${ih}" fill="transparent"/>`;
+    if (n <= 31 || i === n - 1) s += `<circle cx="${x(i)}" cy="${y(p.value)}" r="${i === n - 1 ? 4 : 3}" fill="var(--back-2)" stroke="var(--card)" stroke-width="1.5"/>`;
+    s += "</g>";
+    if (i % every === 0 || i === n - 1 && (n - 1) % every > every / 2) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="${n > 1 && i === n - 1 ? "end" : n > 1 && i === 0 ? "start" : "middle"}">${esc(p.label)}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
 const table = (head, rows) => rows.length
   ? '<table><thead><tr>' + head.map(h => `<th${h.n ? ' class="n"' : ""}>${h.t}</th>`).join("") + "</tr></thead><tbody>" +
     rows.map(r => "<tr>" + r.map((c, i) => `<td${head[i].n ? ' class="n"' : ""}>${c}</td>`).join("") + "</tr>").join("") + "</tbody></table>"
@@ -82,6 +104,12 @@ const table = (head, rows) => rows.length
 const meter = (v, cls = "") => (v === null ? "" : `<span class="meter ${cls}"><i style="width:${v}%"></i></span>`);
 const small = n => (n < MIN_N ? ` <span class="low" title="Small sample">(n=${n})</span>` : ` <span class="muted">(n=${n})</span>`);
 const roundName = r => (FAMILY_EMOJI[r.family] || "") + " " + esc(r.label);
+// Every attempt at a round counts, whether it was played for points or as the bonus after being skipped.
+const tries = r => r.played + (r.bonusPlayed || 0);
+const right = r => r.correct + (r.bonusCorrect || 0);
+const timeAll = r => r.time + (r.bonusTime || 0);
+const pairRight = p => p.correct + (p.bonusCorrect || 0);
+const avgTime = r => (tries(r) ? Math.round(timeAll(r) / tries(r) / 1000) + "s" : "–");
 
 /* ---------- the page ---------- */
 function render() {
@@ -90,7 +118,9 @@ function render() {
   $("updated").textContent = "Updated " + new Date(d.at).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }) + (d.launchDate ? " · launch " + fmtDate(d.launchDate) : "");
   $("tiles").innerHTML = [
     ["Visitors (all time)", d.totals.players.toLocaleString("en-GB")],
-    ["Players with an account", d.totals.accounts == null ? "–" : d.totals.accounts.toLocaleString("en-GB") + (d.totals.players ? " · " + fmtPct(pct(d.totals.accounts, d.totals.players)) : "")],
+    ["Accounts", d.totals.accounts == null ? "–" : d.totals.accounts.toLocaleString("en-GB")],
+    // accounts that have finished a hand, out of everyone who has (guests included); the admin's own account is left out
+    ["Players with an account", d.totals.accountsPlayed == null || d.totals.playedVisitors == null ? "–" : fmtPct(pct(d.totals.accountsPlayed, d.totals.playedVisitors))],
     ["Finished today" + (today ? " · #" + today.hand : ""), today ? today.finished : "–"],
     ["Completion today", today ? fmtPct(pct(today.finished, today.started)) : "–"],
     ["Groups", d.totals.groups],
@@ -99,23 +129,24 @@ function render() {
   barChart($("chPlayers"), open.map(h => ({ label: "#" + h.hand, value: h.finished, back: h.started,
     title: `Hand #${h.hand} (${fmtDate(h.date)}): ${h.started} started, ${h.finished} finished, ${h.bonusPlayed} played the bonus` })));
   barChart($("chNew"), d.newPlayers.map(x => ({ label: fmtDate(x.date), value: x.n, title: `${fmtDate(x.date)}: ${x.n} first visits` })));
+  drawGrowth(d);
   drawSources(d.sources);
 
-  const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct(x.correct || 0, (x.rounds || 0) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
+  const fams = Object.entries(d.families).map(([f, x]) => ({ f, right: pct((x.correct || 0) + (x.bonusCorrect || 0), ((x.rounds || 0) + (x.bonusRounds || 0)) * 6), skip: pct(x.skipped || 0, x.dealt || 0), rounds: x.rounds || 0, dealt: x.dealt || 0 }))
     .sort((a, b) => (a.right ?? 101) - (b.right ?? 101));
   $("tbFams").innerHTML = table([{ t: "Subject" }, { t: "Right", n: 1 }, { t: "Skipped", n: 1 }],
     fams.map(x => [(FAMILY_EMOJI[x.f] || "") + " " + esc(x.f) + small(x.dealt), fmtPct(x.right) + meter(x.right), fmtPct(x.skip) + meter(x.skip, "amber")]));
 
   const rounds = open.flatMap(h => h.rounds.map(r => ({ ...r, hand: h.hand, finished: h.finished })));
-  const hard = rounds.filter(r => r.played).sort((a, b) => a.correct / a.played - b.correct / b.played).slice(0, 10);
+  const hard = rounds.filter(r => tries(r)).sort((a, b) => right(a) / tries(a) - right(b) / tries(b)).slice(0, 10);
   $("tbHard").innerHTML = table([{ t: "Hand" }, { t: "Round" }, { t: "Avg /6", n: 1 }, { t: "Avg time", n: 1 }],
-    hard.map(r => ["#" + r.hand, roundName(r) + small(r.played), avg1(r.correct, r.played), Math.round(r.time / r.played / 1000) + "s"]));
+    hard.map(r => ["#" + r.hand, roundName(r) + small(tries(r)), avg1(right(r), tries(r)), avgTime(r)]));
   const skipped = rounds.filter(r => r.finished).map(r => ({ ...r, rate: pct(r.skipped, r.finished), top: pct(r.strongest, r.finished) }))
     .sort((a, b) => b.rate - a.rate || a.top - b.top).slice(0, 10);
   $("tbSkip").innerHTML = table([{ t: "Hand" }, { t: "Round" }, { t: "Skipped", n: 1 }, { t: "Strongest", n: 1 }],
     skipped.map(r => ["#" + r.hand, roundName(r) + small(r.finished), fmtPct(r.rate) + meter(r.rate, "amber"), fmtPct(r.top)]));
 
-  const pairs = rounds.filter(r => r.played).flatMap(r => r.pairs.map(p => ({ ...p, hand: r.hand, round: r, n: r.played, rate: pct(p.correct, r.played) })))
+  const pairs = rounds.filter(r => tries(r)).flatMap(r => r.pairs.map(p => ({ ...p, hand: r.hand, round: r, n: tries(r), rate: pct(pairRight(p), tries(r)) })))
     .sort((a, b) => a.rate - b.rate || b.n - a.n).slice(0, 20);
   $("tbPairs").innerHTML = '<div class="pairs">' + table([{ t: "Pair" }, { t: "Round" }, { t: "Right", n: 1 }],
     pairs.map(p => [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", "#" + p.hand + " " + roundName(p.round), fmtPct(p.rate) + small(p.n) + meter(p.rate)])) + "</div>";
@@ -127,6 +158,19 @@ function render() {
   pick.innerHTML = open.slice().reverse().map(h => `<option value="${h.hand}">Hand #${h.hand} · ${fmtDate(h.date)}</option>`).join("");
   if (was && open.find(h => String(h.hand) === was)) pick.value = was;
   pick.onchange = drawHand; drawHand();
+}
+function drawGrowth(d) {
+  const day = x => ({ label: fmtDate(x.date), value: x.n });
+  if (!d.accountsByDay) $("chAccounts").innerHTML = `<p class="muted small">${d.totals.accounts === null ? "Couldn't read the sign-ins just now. Try Refresh." : "Not live yet: the server hasn't been updated."}</p>`;
+  else {
+    const first = d.accountsByDay[0];
+    lineChart($("chAccounts"), d.accountsByDay.map((x, i) => ({ ...day(x),
+      title: i === 0 && d.accountsBefore ? `${fmtDate(x.date)}: ${x.n} accounts, including ${d.accountsBefore} made before sign-up dates were recorded` : `${fmtDate(x.date)}: ${x.n} accounts` })));
+    $("accNote").textContent = "Running total of players with an account (Google or email link), by UTC day. Your own account isn't counted." +
+      (first && d.accountsBefore ? ` Sign-up dates are recorded from ${fmtDate(d.accountsFrom)}, so the ${d.accountsBefore} made before then start the line.` : "");
+  }
+  if (!d.groupsByDay) $("chGroups").innerHTML = '<p class="muted small">Not live yet: the server hasn\'t been updated.</p>';
+  else lineChart($("chGroups"), d.groupsByDay.map(x => ({ ...day(x), title: `${fmtDate(x.date)}: ${x.n} groups` })));
 }
 const VIA = { ref: "link tag", referrer: "referring site", direct: "no source" };
 function drawSources(rows) {
@@ -141,14 +185,18 @@ function drawHand() {
   const h = data.hands.find(x => String(x.hand) === $("handPick").value);
   if (!h) { $("handDetail").innerHTML = '<p class="muted small">No hands open yet.</p>'; return; }
   let s = `<p class="muted small">${h.started} started · ${h.finished} finished · ${h.bonusPlayed} played the bonus` +
-    (h.finished ? ` · average ${(h.totalScore / h.finished).toFixed(1)}/60` : "") + "</p>";
+    (h.finished ? ` · average score ${(h.totalScore / h.finished).toFixed(1)}/60` : "") + (h.awareTotal && h.finished ? ` · self-awareness ${Math.round(h.awareTotal / h.finished)}%` : "") + "</p>";
+  // one row per round, in the order dealt; skipped and strongest are shares of finished players
+  s += '<div class="tablewrap section summary">' + table(
+    [{ t: "Round" }, { t: "Played", n: 1 }, { t: "Bonus", n: 1 }, { t: "Skipped", n: 1 }, { t: "Strongest", n: 1 }, { t: "Avg /6", n: 1 }, { t: "Avg time", n: 1 }],
+    h.rounds.map(r => [roundName(r), r.played, r.bonusPlayed || 0, fmtPct(pct(r.skipped, h.finished)), fmtPct(pct(r.strongest, h.finished)),
+      avg1(right(r), tries(r)) + (tries(r) && tries(r) < MIN_N ? small(tries(r)) : ""), avgTime(r)])) + "</div>";
+  s += '<p class="muted small">Played: as one of the four scored rounds. Bonus: played after skipping it. Avg /6 and time count both.</p>';
   h.rounds.forEach(r => {
-    s += `<div class="section"><h2 style="font-size:16px">${roundName(r)}</h2><p class="muted small">` +
-      `Played ${r.played} · avg ${avg1(r.correct, r.played)}/6` + (r.played ? ` · ${Math.round(r.time / r.played / 1000)}s` : "") +
-      ` · skipped by ${fmtPct(pct(r.skipped, h.finished))} · strongest for ${fmtPct(pct(r.strongest, h.finished))}` +
-      (r.bonusPlayed ? ` · bonus ${avg1(r.bonusCorrect, r.bonusPlayed)}/6 (${r.bonusPlayed})` : "") + "</p>";
-    if (r.played) s += '<div class="tablewrap pairs">' + table([{ t: "Pair" }, { t: "Right", n: 1 }],
-      r.pairs.map(p => { const v = pct(p.correct, r.played); return [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", fmtPct(v) + meter(v)]; })) + "</div>";
+    s += `<div class="section"><h2 style="font-size:16px">${roundName(r)}</h2>`;
+    if (tries(r)) s += '<div class="tablewrap pairs">' + table([{ t: "Pair" }, { t: "Right", n: 1 }],
+      r.pairs.map(p => { const v = pct(pairRight(p), tries(r)); return [esc(p.prompt) + " → <b>" + esc(p.answer) + "</b>", fmtPct(v) + meter(v)]; })) + "</div>";
+    else s += '<p class="muted small">Not played yet.</p>';
     s += "</div>";
   });
   $("handDetail").innerHTML = s;
@@ -164,16 +212,21 @@ function demoStats() {
     return {
       hand: i + 1, date, open: true, started, finished, bonusPlayed: Math.floor(finished * 0.4), totalScore: finished * (25 + r() * 15), awareTotal: finished * (70 + r() * 20), tally: {},
       rounds: h.categories.map((c, slot) => {
-        const skipped = Math.floor(finished * r() * 0.45), played = finished - skipped, pairs = h.rounds[slot].prompts.map((p, k) => ({ prompt: p, answer: h.rounds[slot].answers[k], correct: Math.floor(played * (0.2 + r() * 0.75)) }));
-        return { ...c, played, skipped, strongest: Math.floor(finished * r() * 0.4), correct: pairs.reduce((t, p) => t + p.correct, 0), time: played * (15000 + r() * 25000), bonusPlayed: Math.floor(skipped * 0.4), bonusCorrect: Math.floor(skipped * 0.4 * 3), pairs };
+        const skipped = Math.floor(finished * r() * 0.45), played = finished - skipped, bonusPlayed = Math.floor(skipped * 0.4);
+        const pairs = h.rounds[slot].prompts.map((p, k) => ({ prompt: p, answer: h.rounds[slot].answers[k], correct: Math.floor(played * (0.2 + r() * 0.75)), bonusCorrect: Math.floor(bonusPlayed * (0.1 + r() * 0.7)) }));
+        return { ...c, played, skipped, strongest: Math.floor(finished * r() * 0.4), correct: pairs.reduce((t, p) => t + p.correct, 0), time: played * (15000 + r() * 25000),
+          bonusPlayed, bonusCorrect: pairs.reduce((t, p) => t + p.bonusCorrect, 0), bonusTime: bonusPlayed * (20000 + r() * 25000), pairs };
       }),
     };
   });
   const families = {};
-  hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; }));
+  hands.forEach(h => h.rounds.forEach(x => { if (x.family === WILDCARD) return; const f = (families[x.family] ||= { dealt: 0, skipped: 0, rounds: 0, correct: 0 }); f.dealt += h.finished; f.skipped += x.skipped; f.rounds += x.played; f.correct += x.correct; f.bonusRounds = (f.bonusRounds || 0) + x.bonusPlayed; f.bonusCorrect = (f.bonusCorrect || 0) + x.bonusCorrect; }));
   const today = Date.now();
   return {
-    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, accounts: 58 }, families, hands,
+    launchDate: hands[0].date, at: today, totals: { players: 412, groups: 37, accounts: 58, accountsPlayed: 55, playedVisitors: 301 }, families, hands,
+    accountsFrom: hands[0].date, accountsBefore: 12,
+    accountsByDay: hands.map((h, i) => ({ date: h.date, n: 12 + Math.round(46 * (i / Math.max(1, hands.length - 1)) ** 1.4) })),
+    groupsByDay: hands.map((h, i) => ({ date: h.date, n: Math.round(37 * (i / Math.max(1, hands.length - 1)) ** 1.2) })),
     newPlayers: Array.from({ length: 30 }, (_, i) => ({ date: new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10), n: i < 26 ? 0 : Math.floor(30 + r() * 90) })),
     sources: [["direct", "direct"], ["dailydle", "referrer"], ["reddit", "ref"], ["untracked", null], ["dlesgg", "referrer"], ["invite", "ref"], ["someblog.com", "referrer"]].map(([tag, via], i) => {
       const players = Math.max(2, Math.floor((140 - i * 20) * (0.5 + r()))), played = Math.floor(players * (0.5 + r() * 0.4)), returned = Math.floor(played * r() * 0.7), weekEligible = Math.floor(players * 0.6);
