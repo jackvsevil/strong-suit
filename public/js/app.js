@@ -457,8 +457,20 @@ function dotsEl(marks, cls) {
   marks.forEach(m => { const i = document.createElement("i"); if (m) i.className = "on"; d.appendChild(i); });
   return d;
 }
+// the results need a finished play with all four rounds; a read on a dropped connection can come back short
+const playComplete = p => !!(p && p.status === "done" && p.rounds && [0, 1, 2, 3].every(k => p.rounds[k]));
+async function reloadResults() {
+  busy(true);
+  let p = null;
+  try { p = await G.eng.getPlay(G.n); } catch (_) {}
+  finally { busy(false); }
+  if (playComplete(p)) { G.play = p; return renderResults(); }
+  toast("Couldn't load your result. Check your connection and try again.", 4000);
+  renderHome();
+}
 function renderResults() {
   const p = G.play;
+  if (!playComplete(p)) return reloadResults();   // read it again once, rather than crash
   $("resTitle").textContent = G.tut ? "Practice hand" : "Hand #" + p.hand;
   $("resNum").innerHTML = p.score + "<small>/60</small>";
   $("awPct").textContent = p.aware + "%";
