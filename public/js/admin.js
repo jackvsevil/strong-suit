@@ -52,6 +52,39 @@ async function refresh() {
 $("refresh").onclick = refresh;
 let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => data && render(), 200); });
 
+/* ---------- chart tooltips: hover (or tap, or keyboard focus) a day or hand to see its numbers ---------- */
+const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; tip.setAttribute("role", "status"); document.body.appendChild(tip);
+let tipOn = null;
+function showTip(g, cx, cy) {
+  if (tipOn !== g) {
+    if (tipOn) tipOn.classList.remove("on");
+    tipOn = g; g.classList.add("on");
+    const t = g.dataset.tip, k = t.indexOf(": ");   // "Hand #3 (17 Oct): 12 started…" → bold heading, then the numbers
+    tip.innerHTML = k > 0 ? "<b>" + esc(t.slice(0, k)) + "</b>" + esc(t.slice(k + 2)) : esc(t);
+    tip.hidden = false;
+  }
+  const r = tip.getBoundingClientRect(), pad = 8;
+  let x = cx + 14, y = cy - r.height - 12;
+  if (x + r.width > innerWidth - pad) x = cx - r.width - 14;   // flip to the left near the right edge
+  if (y < pad) y = cy + 16;                                      // and below the pointer near the top
+  tip.style.left = Math.max(pad, x) + "px"; tip.style.top = y + "px";
+}
+function hideTip() { if (tipOn) tipOn.classList.remove("on"); tipOn = null; tip.hidden = true; }
+document.addEventListener("pointermove", e => {
+  const g = e.target.closest && e.target.closest(".hit");
+  if (g) showTip(g, e.clientX, e.clientY); else if (e.pointerType === "mouse") hideTip();
+});
+document.addEventListener("pointerdown", e => {   // touch: tap a bar or day to see it, tap elsewhere to close
+  const g = e.target.closest && e.target.closest(".hit");
+  if (g) showTip(g, e.clientX, e.clientY); else hideTip();
+});
+document.addEventListener("focusin", e => {
+  const g = e.target.closest && e.target.closest(".hit");
+  if (g) { const r = g.getBoundingClientRect(); showTip(g, r.left + r.width / 2, r.top + r.height / 3); }
+});
+document.addEventListener("focusout", hideTip);
+addEventListener("scroll", hideTip, { passive: true });
+
 /* ---------- charts: plain SVG, one hue per meaning ---------- */
 function niceMax(v) { if (v <= 5) return 5; const p = 10 ** Math.floor(Math.log10(v)), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
 /** bars: [{ label, title, back?, value }] — back is an optional wider, paler bar behind (e.g. started vs finished). */
@@ -67,9 +100,9 @@ function barChart(el, bars, { max, fmt = v => v, height = 190 } = {}) {
   [0, 0.5, 1].forEach(f => { const v = top * f, yy = y(v); s += `<line x1="${L}" x2="${W - 4}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(Math.round(v * 10) / 10)}</text>`; });
   bars.forEach((b, i) => {
     const cx = L + step * i + step / 2;
-    s += `<g><title>${esc(b.title)}</title><rect x="${cx - step / 2}" y="${T}" width="${step}" height="${ih}" fill="transparent"/>`;
+    s += `<g class="hit" data-tip="${esc(b.title)}" tabindex="0" aria-label="${esc(b.title)}"><rect class="hov" x="${cx - step / 2}" y="${T}" width="${step}" height="${ih}"/>`;
     if (b.back) s += `<rect x="${cx - bw / 2 - 2}" y="${y(b.back)}" width="${bw + 4}" height="${Math.max(0, T + ih - y(b.back))}" rx="3" fill="var(--soft)"/>`;
-    if (b.value > 0) s += `<rect x="${cx - bw / 2}" y="${y(b.value)}" width="${bw}" height="${T + ih - y(b.value)}" rx="3" fill="var(--back-2)"/>`;
+    if (b.value > 0) s += `<rect class="bar" x="${cx - bw / 2}" y="${y(b.value)}" width="${bw}" height="${T + ih - y(b.value)}" rx="3" fill="var(--back-2)"/>`;
     s += "</g>";
     if (i % every === 0) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(b.label)}</text>`;
   });
@@ -90,8 +123,10 @@ function lineChart(el, points, { height = 190 } = {}) {
   s += `<path d="${line}" fill="none" stroke="var(--back-2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
   points.forEach((p, i) => {
     const w = n > 1 ? step : iw;
-    s += `<g><title>${esc(p.title)}</title><rect x="${x(i) - w / 2}" y="${T}" width="${w}" height="${ih}" fill="transparent"/>`;
+    s += `<g class="hit" data-tip="${esc(p.title)}" tabindex="0" aria-label="${esc(p.title)}"><rect class="hov" x="${x(i) - w / 2}" y="${T}" width="${w}" height="${ih}"/>` +
+      `<line class="guide" x1="${x(i)}" x2="${x(i)}" y1="${T}" y2="${T + ih}"/>`;
     if (n <= 31 || i === n - 1) s += `<circle cx="${x(i)}" cy="${y(p.value)}" r="${i === n - 1 ? 4 : 3}" fill="var(--back-2)" stroke="var(--card)" stroke-width="1.5"/>`;
+    s += `<circle class="dot" cx="${x(i)}" cy="${y(p.value)}" r="5" fill="var(--back-2)" stroke="var(--card)" stroke-width="2"/>`;
     s += "</g>";
     if (i % every === 0 || i === n - 1 && (n - 1) % every > every / 2) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="${n > 1 && i === n - 1 ? "end" : n > 1 && i === 0 ? "start" : "middle"}">${esc(p.label)}</text>`;
   });
