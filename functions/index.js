@@ -12,9 +12,13 @@ initializeApp();
 // Admin page: only Google-verified addresses listed in ADMIN_EMAILS (the GitHub secret, written to functions/.env at deploy; empty means nobody).
 const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
 const h = makeHandlers({ db: getFirestore(), FieldValue, Timestamp, auth: getAuth(), HttpsError, adminEmails: ADMINS });   // the admin plays but stays off the Everyone leaderboard
+// The first database call on a freshly started server opens its connection, which adds about 0.3s.
+// A wake-up call does that once per server, so the player's first real request doesn't pay for it.
+let dbReady = null;
+const connectDb = () => (dbReady ||= getFirestore().doc("config/app").get().then(() => true, () => { dbReady = null; }));
 const call = fn => onCall({ cors: true }, async req => {
   if (!req.auth) throw new HttpsError("unauthenticated", "Please sign in first.");
-  if (req.data && req.data.warm === true) return { warm: true };   // a wake-up call from the app, so the next real request skips the cold start
+  if (req.data && req.data.warm === true) { await connectDb(); return { warm: true }; }   // a wake-up call from the app, so the next real request skips the cold start
   return fn(req.data || {}, req.auth.uid, req.auth.token);   // the token says whether they're a guest
 });
 export const startHand = call(h.startHand);

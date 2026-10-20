@@ -114,6 +114,7 @@ async function firebaseBackend(config, source) {
       catch (e) { if (e.code === "permission-denied") return null; throw friendly(e); }
     },
     getPlay: n => get(`players/${uid()}/plays/${n}`),
+    peekMe: () => get(`players/${uid()}`),   // just the read: no profile creation, no score claiming
     async getMe() {
       let me = await get(`players/${uid()}`);
       if (!me) { await call("getMe")({ source }); me = await get(`players/${uid()}`); }
@@ -124,7 +125,7 @@ async function firebaseBackend(config, source) {
       }
       return me;
     },
-    startHand: (n, ranking) => call("startHand")({ hand: n, ranking }),
+    startHand: (n, ranking) => call("startHand")({ hand: n, ranking, source }),
     startRound: (n, bonus) => call("startRound")({ hand: n, bonus: !!bonus }),
     submitRound: (n, key, picks, timeMs) => call("submitRound")({ hand: n, key, picks, timeMs }),
     setName: name => call("setName")({ name }),
@@ -263,6 +264,7 @@ function demoBackend() {
     getHand: async n => (hands[n] ? { number: n, date: hands[n].date, categories: hands[n].categories } : null),
     getPlay: engine.getPlay,
     getMe: async () => structuredClone(st.me),
+    peekMe: async () => structuredClone(st.me),
     startHand: engine.startHand, startRound: engine.startRound, submitRound: engine.submitRound,
     async setName(name) { st.me.name = String(name).trim().slice(0, 20); save(); return { name: st.me.name }; },
     async leaderboard(n) {

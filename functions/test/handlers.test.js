@@ -416,6 +416,21 @@ test("claiming scores is safe to repeat and leaves moderated scores off", async 
   assert.equal(db.store.get("leaderboards/1").players, 1);
 });
 
+test("startHand: makes the profile with the visit source if getMe hasn't yet, and says when it resumed", async () => {
+  const { db, h } = setup();
+  const s = await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4], source: { ref: "dailydle" } }, "new");
+  assert.equal(s.resumed, undefined);
+  assert.deepEqual(db.store.get("players/new").source, { tag: "dailydle", via: "ref" });
+  assert.deepEqual(await h.getMe({ source: { ref: "other" } }, "new"), { created: false });   // first touch still wins
+  assert.deepEqual(db.store.get("players/new").source, { tag: "dailydle", via: "ref" });
+  const again = await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, "new");                // same ranking from another tab
+  assert.deepEqual(again, { order: s.order, skipped: s.skipped, resumed: true });
+  // a profile getMe already made keeps its source
+  await h.getMe({ source: { ref: "dlesgg" } }, "old");
+  await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4], source: { ref: "dailydle" } }, "old");
+  assert.equal(db.store.get("players/old").source.tag, "dlesgg");
+});
+
 test("the admin's own account plays but never goes on the Everyone leaderboard", async () => {
   const { db, h } = setup({ adminEmails: [" Boss@Example.com "] });
   const play = async (uid, token, n) => {

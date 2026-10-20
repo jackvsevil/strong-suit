@@ -130,8 +130,8 @@ async function renderHome() {
     return show("home");
   }
   $("homeTitle").textContent = "Hand #" + S.n;
-  S.hand = await api.getHand(S.n).catch(() => null);
-  S.play = S.hand ? await api.getPlay(S.n).catch(() => null) : null;
+  [S.hand, S.play] = await Promise.all([api.getHand(S.n).catch(() => null), api.getPlay(S.n).catch(() => null)]);
+  if (!S.hand) S.play = null;
   if (!S.hand) {
     $("homeSub").textContent = "Today's hand isn't ready yet. Check back soon.";
     bar([{ label: "Try the practice hand", ghost: true, onClick: startTutorial }]);
@@ -224,8 +224,11 @@ async function deal() {
   const ranking = ranked.concat(cats.findIndex((_, i) => !ranked.includes(i)));
   busy(true);
   try {
-    await G.eng.startHand(G.n, ranking);
-    G.play = await G.eng.getPlay(G.n);
+    const s = await G.eng.startHand(G.n, ranking);
+    // a new play is just the ranking and the hand's categories, so build it rather than read it back;
+    // a play that already existed (started elsewhere) is read, since it may have rounds done
+    G.play = s.resumed ? await G.eng.getPlay(G.n)
+      : { hand: G.n, date: G.hand.date || null, ranking, order: s.order, skipped: s.skipped, categories: G.hand.categories, rounds: {}, status: "playing" };
     readyRound();
   } catch (e) {
     toast(e.message);
@@ -1184,8 +1187,12 @@ async function boot() {
   try { api = await createBackend(); }
   catch (e) { $("loadingText").textContent = "Couldn't load Strong Suit. Check your connection and refresh."; return; }
   $("demoBanner").hidden = !api.demo;
-  S.config = (await api.config().catch(() => null)) || {};
-  await refreshMe();
+  // the settings and the profile in one go; making a new visitor's profile (a server call that may need to wake up)
+  // or claiming a new account's scores carries on in the background rather than holding up the home screen
+  const [cfg, me] = await Promise.all([api.config().catch(() => null), api.peekMe().catch(() => null)]);
+  S.config = cfg || {};
+  S.me = me;
+  if (!me || (!me.listed && !api.account().anonymous)) refreshMe();
   if (api.linkNote && api.linkNote.signedIn) toast("Signed in as " + api.linkNote.signedIn);
   if (api.linkNote && api.linkNote.error) toast(api.linkNote.error, 5000);
   await renderHome();

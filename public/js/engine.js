@@ -22,7 +22,7 @@ export function makeEngine({ hands, plays = {}, onSave = () => {}, onFinish = ()
     async startHand(n, ranking) {
       const h = hands[n];
       if (!h) throw err("not-found", "That hand doesn't exist.");
-      if (plays[n]) return { order: plays[n].order, skipped: plays[n].skipped };
+      if (plays[n]) return { order: plays[n].order, skipped: plays[n].skipped, resumed: true };
       const order = ranking.slice(0, 4).reverse(), skipped = ranking[4];
       plays[n] = { hand: n, ranking, order, skipped, categories: h.categories, rounds: {}, status: "playing", startedAt: Date.now() };
       onSave(); return { order, skipped };

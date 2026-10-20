@@ -38,7 +38,7 @@ const isAdmin = token => !!(token && token.email && token.email_verified && ADMI
 const GUEST_GROUPS = "Create a free account to join groups. Your scores so far come with you.";
 
 /* ---------- 1. Lock in the ranking ---------- */
-const startHand = (async ({ hand, ranking }, uid) => {
+const startHand = (async ({ hand, ranking, source }, uid) => {
   needHand(hand);
   if (!G.checkRanking(ranking)) fail("invalid-argument", "Rank all five categories.");
   const r = refs(uid, hand);
@@ -47,11 +47,12 @@ const startHand = (async ({ hand, ranking }, uid) => {
     if (!h.exists) fail("not-found", "That hand doesn't exist.");
     if (h.get("opensAt").toMillis() > now()) fail("failed-precondition", "That hand isn't open yet.");
     if (play.exists) {
-      if (JSON.stringify(play.get("ranking")) === JSON.stringify(ranking)) return { order: play.get("order"), skipped: play.get("skipped") };
+      if (JSON.stringify(play.get("ranking")) === JSON.stringify(ranking)) return { order: play.get("order"), skipped: play.get("skipped"), resumed: true };
       fail("already-exists", "You've already started this hand.");
     }
     const { order, skipped } = G.playOrder(ranking);
-    if (!player.exists) tx.set(r.player, newPlayer(uid));
+    // the app no longer waits for getMe before showing the game, so a quick first hand may create the profile here
+    if (!player.exists) tx.set(r.player, { ...newPlayer(uid), source: cleanSource(source) });
     tx.set(r.play, {
       hand, date: h.get("date") || null, ranking, order, skipped, categories: h.get("categories"),
       startedAt: FieldValue.serverTimestamp(), rounds: {}, status: "playing",
