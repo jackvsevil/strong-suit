@@ -8,6 +8,8 @@
 //   hide-guest-scores  TARGET = a hand number, or "all". Takes guests' scores off the Everyone leaderboard, which
 //                 only lists players with an account (from 16 Oct 2026). Their plays stay, and their scores go back
 //                 on the board if they sign up.
+//   hide-admin-scores  TARGET = a hand number, or "all". Takes the admin's own scores (the ADMIN_EMAILS accounts)
+//                 off the Everyone leaderboard. The server keeps them off from 20 Oct 2026; their plays stay.
 // DRY_RUN=1 reports what would change without changing it.
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -121,7 +123,35 @@ async function hideGuestScores() {
   say(`${total} guest score${total === 1 ? "" : "s"} ${DRY ? "would be taken" : "taken"} off in all.`);
 }
 
-const actions = { find, "rename-player": renamePlayer, "rename-group": renameGroup, "remove-score": removeScore, "hide-guest-scores": hideGuestScores };
+async function hideAdminScores() {
+  const emails = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
+  if (!emails.length) stop("The ADMIN_EMAILS secret is empty.");
+  const hands = TARGET.toLowerCase() === "all"
+    ? (await db.collection("leaderboards").select().get()).docs.map(d => Number(d.id)).filter(Number.isInteger).sort((a, b) => a - b)
+    : [Number(TARGET)];
+  if (!hands.length || !hands.every(n => Number.isInteger(n) && n >= 1)) stop('Put a hand number, or "all", in the target box.');
+  const { users } = await getAuth().getUsers(emails.map(email => ({ email })));
+  if (!users.length) { say("No accounts found for the admin addresses."); return; }
+  say(`Admin account${users.length === 1 ? "" : "s"}: ${users.map(u => u.uid).join(", ")}.`);
+  let total = 0;
+  for (const hand of hands) for (const u of users) {
+    const eref = db.doc(`leaderboards/${hand}/entries/${u.uid}`);
+    const e = await eref.get();
+    if (!e.exists) continue;
+    const score = e.get("score");
+    say(`Hand #${hand}: "${e.get("name")}" ${score}.`);
+    total++;
+    if (DRY) continue;
+    const b = db.batch();
+    b.delete(eref);
+    b.set(db.doc(`leaderboards/${hand}`), { players: FieldValue.increment(-1), totalScore: FieldValue.increment(-score), tally: { [score]: FieldValue.increment(-1) } }, { merge: true });
+    b.set(db.doc(`players/${u.uid}/plays/${hand}`), { removedFromLeaderboard: true }, { merge: true });
+    await b.commit();
+  }
+  say(`${total} admin score${total === 1 ? "" : "s"} ${DRY ? "would be taken" : "taken"} off in all.`);
+}
+
+const actions = { find, "rename-player": renamePlayer, "rename-group": renameGroup, "remove-score": removeScore, "hide-guest-scores": hideGuestScores, "hide-admin-scores": hideAdminScores };
 if (!actions[ACTION]) stop("Unknown action: " + ACTION);
 await actions[ACTION]();
 const head = (DRY && ACTION !== "find" ? "DRY RUN, nothing changed. " : "") + (ACTION === "find" ? "Found:" : "Done:");

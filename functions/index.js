@@ -9,7 +9,9 @@ import { makeHandlers } from "./lib/handlers.js";
 
 setGlobalOptions({ region: "europe-west2", maxInstances: 20, memory: "256MiB", timeoutSeconds: 30 });
 initializeApp();
-const h = makeHandlers({ db: getFirestore(), FieldValue, Timestamp, auth: getAuth(), HttpsError });
+// Admin page: only Google-verified addresses listed in ADMIN_EMAILS (the GitHub secret, written to functions/.env at deploy; empty means nobody).
+const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
+const h = makeHandlers({ db: getFirestore(), FieldValue, Timestamp, auth: getAuth(), HttpsError, adminEmails: ADMINS });   // the admin plays but stays off the Everyone leaderboard
 const call = fn => onCall({ cors: true }, async req => {
   if (!req.auth) throw new HttpsError("unauthenticated", "Please sign in first.");
   if (req.data && req.data.warm === true) return { warm: true };   // a wake-up call from the app, so the next real request skips the cold start
@@ -30,8 +32,6 @@ export const newGroupCode = call(h.newGroupCode);
 export const groupDay = call(h.groupDay);
 export const groupMonth = call(h.groupMonth);
 export const groupPreview = call(h.groupPreview);
-// Admin page: only Google-verified addresses listed in ADMIN_EMAILS (the GitHub secret, written to functions/.env at deploy; empty means nobody).
-const ADMINS = (process.env.ADMIN_EMAILS || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean);
 export const adminStats = onCall({ cors: true, memory: "512MiB", timeoutSeconds: 60 }, async req => {
   const t = req.auth && req.auth.token;
   if (!t || !t.email || !t.email_verified || !ADMINS.includes(String(t.email).toLowerCase())) throw new HttpsError("permission-denied", "This page is private.");

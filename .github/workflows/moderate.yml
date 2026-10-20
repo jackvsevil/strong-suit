@@ -7,10 +7,10 @@ on:
       action:
         description: "What to do"
         type: choice
-        options: [find, rename-player, rename-group, remove-score, hide-guest-scores]
+        options: [find, rename-player, rename-group, remove-score, hide-guest-scores, hide-admin-scores]
         default: find
       target:
-        description: "find: a nickname, group name or code · rename-player / remove-score: player ID · rename-group: group code · hide-guest-scores: a hand number or all"
+        description: "find: a nickname, group name or code · rename-player / remove-score: player ID · rename-group: group code · hide-guest-scores / hide-admin-scores: a hand number or all"
         required: true
       value:
         description: "rename: the new name (blank gives a neutral one) · remove-score: the hand number"
@@ -41,3 +41,4 @@ jobs:
           TARGET: ${{ inputs.target }}
           VALUE: ${{ inputs.value }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}   # for hide-admin-scores

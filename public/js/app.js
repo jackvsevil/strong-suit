@@ -508,12 +508,12 @@ function renderResults() {
   (inv && inv.skip !== p.hand ? maybeInviteCard(p, inv) : maybeSaveCard()).catch(() => {});
   api.leaderboard(p.hand).then(lb => {
     const guest = api.account().anonymous;   // guests aren't on the leaderboard, so they're compared with everyone on it
-    const s = lb.summary, others = s ? s.players - (guest ? 0 : 1) : 0;
+    const s = lb.summary, others = s ? s.players - (lb.mine ? 1 : 0) : 0;   // so is anyone else not on it (the admin, a removed score)
     if (!s || others < 1) return;
     const below = Object.entries(s.tally || {}).reduce((n, [sc, c]) => n + (+sc < p.score ? c : 0), 0);
     $("percentile").innerHTML = guest
       ? "You'd beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players on today's leaderboard. Average " + Math.round(s.totalScore / s.players) + ". Create an account to join them."
-      : "You beat <b>" + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
+      : (lb.mine ? "You beat <b>" : "You'd beat <b>") + Math.round((below / others) * 100) + "%</b> of the " + s.players.toLocaleString("en-GB") + " players today. Average " + Math.round(s.totalScore / s.players) + ".";
     $("percentile").hidden = !$("inviteCard").hidden;   // the invite card's table takes its place
   }).catch(() => {});
 }
