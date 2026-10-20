@@ -139,9 +139,11 @@ async function renderHome() {
     $("homeSub").textContent = "You scored " + S.play.score + "/60 today. The next hand opens in " + untilMidnight() + ".";
     bar([{ label: "See today's result", onClick: () => openHand(S.n) }]);
   } else if (S.play) {
+    api.warmRounds();   // wake the server now, so their next round doesn't wait for it
     $("homeSub").textContent = "You're part-way through today's hand.";
     bar([{ label: "Carry on", onClick: () => openHand(S.n) }]);
   } else {
+    api.warmRounds();
     $("homeSub").textContent = "Five categories. Skip one, then play the rest for rising stakes.";
     bar([{ label: "Play hand #" + S.n, onClick: () => openHand(S.n) }]);
   }
@@ -184,6 +186,7 @@ function startTutorial() {
 let ranked = [];
 function renderSetup(animate) {
   if (animate) ranked = [];
+  if (!G.tut) api.warmRounds();   // in case they came straight here (e.g. from Your hands)
   const cats = G.hand.categories;
   $("setupTitle").textContent = G.tut ? "Practice hand" : "Hand #" + G.n + ": rank your categories";
   $("setupSub").textContent = G.tut ? "Five easy categories to learn the ropes. Nothing here counts." : "Strongest first. Your fifth card is skipped. You'll play weakest first, for ×1, up to your strongest, for ×4.";
@@ -387,13 +390,24 @@ async function lockIn() {
   bar([{ label: "Checking…", disabled: true }]);
   try {
     const out = await G.eng.submitRound(G.n, rs.pl.key, picks, Date.now() - rs.started);
-    G.play = await G.eng.getPlay(G.n);
+    G.play = withResult(G.play, rs.pl.key, out);   // the reply has everything, so no second trip to read the play back
     showReveal(out.result, rs.pl.key);
   } catch (e) {
     rs.done = false;
     toast(e.message, 4000);
     bar([{ label: "Try again", onClick: lockIn }]);
   }
+}
+/** The play as the server has just saved it: the round's result added and, after round four, the final score. */
+function withResult(p, key, out) {
+  const q = structuredClone(p);
+  delete q.current;
+  if (key === "bonus") q.bonus = out.result;
+  else {
+    q.rounds = { ...(q.rounds || {}), [key]: out.result };
+    if (out.final) Object.assign(q, { score: out.final.score, best: out.final.best, aware: out.final.aware, time: out.final.time, status: "done" });
+  }
+  return q;
 }
 function revealList(result, list) {
   const rv = result.review; list.innerHTML = "";

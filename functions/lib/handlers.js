@@ -201,7 +201,7 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid, token) => {
     b.set(db.doc(`roundStats/${hand}`), { bonusPlayed: inc(1), rounds: { [x.slot]: G.bonusTally(x, inc) } }, { merge: true });
     if (G.countsInStats(x.family)) b.set(db.doc("stats/families"), { families: { [x.family]: { bonusRounds: inc(1), bonusCorrect: inc(x.correct) } } }, { merge: true });
   }
-  await b.commit().catch(e => console.error("tally update failed", hand, uid, e));
+  if (out.final || key === "bonus") await b.commit().catch(e => console.error("tally update failed", hand, uid, e));   // rounds 1-3 have nothing to tally
   const res = { result: out.result };
   if (out.final) res.final = { score: out.final.score, best: out.final.best, aware: out.final.aware, time: out.final.time, listed };
   return res;
