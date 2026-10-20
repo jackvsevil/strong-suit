@@ -4,7 +4,7 @@ import { makeDb, FieldValue, Timestamp, HttpsError } from "./fakedb.js";
 import { makeHandlers } from "../lib/handlers.js";
 
 const FAMS = ["Film & TV", "Music", "Geography", "Food & Drink", "Language"];
-function setup() {
+function setup(opts = {}) {
   let t = Date.UTC(2026, 10, 1, 12);
   const clock = () => t;
   const db = makeDb(clock);
@@ -18,7 +18,7 @@ function setup() {
       ? { users: [{ uid: "c", providerData: [{ providerId: "password" }] }, { uid: "boss", email: "Boss@Example.com", providerData: [{ providerId: "google.com" }] }] }
       : { users: [{ uid: "a", providerData: [{ providerId: "google.com" }] }, { uid: "g", providerData: [] }], pageToken: "next" },
   };
-  const h = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth, now: clock });
+  const h = makeHandlers({ db, FieldValue, Timestamp, HttpsError, auth, now: clock, ...opts });
   db.store.set("hands/1", {
     number: 1, opensAt: Timestamp.fromMillis(t - 3600e3),
     categories: FAMS.map((f, slot) => ({ slot, categoryId: "CAT-" + slot, themeId: "", label: "Cat " + slot, family: f })),
@@ -414,6 +414,36 @@ test("claiming scores is safe to repeat and leaves moderated scores off", async 
   assert.equal(db.store.get("leaderboards/1/entries/s").score, 60);
   assert.deepEqual(await h.claimScores({}, "s"), { added: 0 });
   assert.equal(db.store.get("leaderboards/1").players, 1);
+});
+
+test("the admin's own account plays but never goes on the Everyone leaderboard", async () => {
+  const { db, h } = setup({ adminEmails: [" Boss@Example.com "] });
+  const play = async (uid, token, n) => {
+    await h.startHand({ hand: 1, ranking: [0, 1, 2, 3, 4] }, uid, token);
+    for (let k = 0; k < 4; k++) {
+      const d = await h.startRound({ hand: 1 }, uid, token);
+      await h.submitRound({ hand: 1, key: d.key, picks: picksFor(d, n), timeMs: 1000 }, uid, token);
+    }
+  };
+  const boss = { firebase: { sign_in_provider: "google.com" }, email: "boss@example.com", email_verified: true };
+  const unverified = { firebase: { sign_in_provider: "password" }, email: "boss@example.com", email_verified: false };
+  await play("boss", boss, 6);
+  await play("a", { firebase: { sign_in_provider: "google.com" }, email: "a@example.com", email_verified: true }, 3);
+  await play("c", unverified, 2);   // an unverified address doesn't count as the admin
+  assert.equal(db.store.get("players/boss/plays/1").score, 60);        // their play and stats still count
+  assert.equal(db.store.get("players/boss").stats.played, 1);
+  assert.equal(db.store.get("roundStats/1").finished, 3);
+  assert.equal(db.store.get("leaderboards/1/entries/boss"), undefined);
+  assert.equal(db.store.get("leaderboards/1/entries/a").score, 30);
+  assert.equal(db.store.get("leaderboards/1/entries/c").score, 20);
+  assert.equal(db.store.get("leaderboards/1").players, 2);
+  assert.deepEqual(db.store.get("leaderboards/1").tally, { 20: 1, 30: 1 });
+  // claiming after sign-up adds nothing for the admin, but still records the sign-up once
+  assert.deepEqual(await h.claimScores({}, "boss", boss), { added: 0 });
+  assert.equal(db.store.get("leaderboards/1/entries/boss"), undefined);
+  assert.equal(db.store.get("players/boss").listed, true);
+  assert.ok(db.store.get("players/boss").accountAt);
+  assert.equal(db.store.get("leaderboards/1").players, 2);
 });
 
 test("if Auth can't be reached, an anonymous token is treated as a guest", async () => {

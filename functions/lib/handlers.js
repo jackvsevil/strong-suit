@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { allowedName } from "./names.js";
 import { cleanSource } from "./sources.js";
 
-export function makeHandlers({ db, FieldValue, Timestamp, auth, HttpsError, now = () => Date.now() }) {
+export function makeHandlers({ db, FieldValue, Timestamp, auth, HttpsError, now = () => Date.now(), adminEmails = [] }) {
 const LEAD_SECONDS = 3;   // the 3-2-1 countdown before the timer starts
 
 const fail = (code, msg) => { throw new HttpsError(code, msg); };
@@ -32,6 +32,9 @@ async function isGuest(uid, token) {
   try { return !((await auth.getUser(uid)).providerData || []).length; }
   catch (e) { console.error("isGuest", uid, e); return true; }
 }
+// The admin's own account (ADMIN_EMAILS) plays like anyone else but is never put on the Everyone leaderboard.
+const ADMINS = adminEmails.map(e => String(e).trim().toLowerCase()).filter(Boolean);
+const isAdmin = token => !!(token && token.email && token.email_verified && ADMINS.includes(String(token.email).toLowerCase()));
 const GUEST_GROUPS = "Create a free account to join groups. Your scores so far come with you.";
 
 /* ---------- 1. Lock in the ranking ---------- */
@@ -167,7 +170,8 @@ const submitRound = (async ({ hand, key, picks, timeMs }, uid, token) => {
 
   // Leaderboards and category stats sit outside the transaction: they're tallies, not the record.
   // Guests' scores count towards the stats but stay off the Everyone leaderboard (and its tally) until they sign up.
-  const listed = out.final ? !(await isGuest(uid, token)) : false;
+  // The admin's own scores never go on it.
+  const listed = out.final ? !isAdmin(token) && !(await isGuest(uid, token)) : false;
   const b = db.batch();
   const inc = FieldValue.increment;
   if (out.final) {
@@ -612,6 +616,10 @@ const claimScores = (async (_, uid, token) => {
   const pref = db.doc(`players/${uid}`);
   const p = await pref.get();
   if (!p.exists || p.get("listed")) return { added: 0 };
+  if (isAdmin(token)) {   // the admin's scores stay off the board; still record the sign-up once, like anyone else
+    await pref.set({ listed: true, ...(p.get("accountAt") ? {} : { accountAt: FieldValue.serverTimestamp() }) }, { merge: true });
+    return { added: 0 };
+  }
   const inc = FieldValue.increment;
   const plays = await pref.collection("plays").where("status", "==", "done").get();
   let added = 0;
