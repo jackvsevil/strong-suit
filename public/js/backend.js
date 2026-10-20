@@ -48,7 +48,7 @@ async function firebaseBackend(config, source) {
   const fns = Fn.getFunctions(app, "europe-west2");
   const call = name => async data => { try { return (await Fn.httpsCallable(fns, name)(data)).data; } catch (e) { throw friendly(e); } };
   const get = async path => { const s = await F.getDoc(F.doc(db, path)); return s.exists() ? s.data() : null; };
-  let warmedAt = 0;
+  let warmedAt = 0, warmedRoundsAt = 0;
 
   await auth.authStateReady();
   let linkNote = null;
@@ -162,6 +162,13 @@ async function firebaseBackend(config, source) {
       warmedAt = Date.now();
       ["groupDay", "groupMonth"].forEach(n => Fn.httpsCallable(fns, n)({ warm: true }).catch(() => {}));
     },
+    // The same for the functions a hand uses, while the player is on the home or ranking screen: an idle function
+    // takes 2-3 seconds to start, which otherwise lands on their first round. At most once every 5 minutes.
+    warmRounds() {
+      if (Date.now() - warmedRoundsAt < 5 * 60000) return;
+      warmedRoundsAt = Date.now();
+      ["startHand", "startRound", "submitRound"].forEach(n => Fn.httpsCallable(fns, n)({ warm: true }).catch(() => {}));
+    },
     globalFamilies: () => get("stats/families").then(d => (d && d.families) || {}).catch(() => ({})),
     async myPlays() {   // every hand you've started, keyed by hand number
       const qs = await F.getDocs(F.collection(db, `players/${uid()}/plays`));
@@ -267,6 +274,7 @@ function demoBackend() {
     groups: async () => st.me.groupIds.map(id => ({ id, ...st.groups[id] })),
     group: async gid => (st.groups[gid] ? { id: gid, ...st.groups[gid] } : null),
     warmGroups() {},
+    warmRounds() {},
     // same shapes as the server's groupDay and groupMonth
     async groupDay(gid, n) {
       const g = st.groups[gid], h = hands_[n];
