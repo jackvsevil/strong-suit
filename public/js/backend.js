@@ -56,23 +56,43 @@ async function firebaseBackend(config, source) {
   if (!auth.currentUser) await A.signInAnonymously(auth);
   const uid = () => auth.currentUser.uid;
 
+  // A sign-in link works once. Take its parameters off the address bar straight away, whatever happens next:
+  // if they stayed (a cancelled prompt, or a link already used in another browser), every visit to that tab,
+  // and any bookmark or home-screen icon saved from it, would ask for the email again.
+  function clearEmailLink() {
+    const p = new URLSearchParams(location.search);
+    ["apiKey", "oobCode", "mode", "continueUrl", "lang", "tenantId"].forEach(k => p.delete(k));
+    const q = p.toString();   // keeps ?join= for a guest who signed up to join a group
+    try { history.replaceState(history.state, "", location.pathname + (q ? "?" + q : "") + location.hash); } catch (_) {}
+  }
+
   async function finishEmailLink() {
+    const href = location.href;
+    clearEmailLink();
+    const u = auth.currentUser;
     let email = null;
     try { email = localStorage.getItem(EMAIL_KEY); } catch (_) {}
+    if (!email && u && !u.isAnonymous) return null;   // already signed in (link reopened, or opened in a second browser): nothing to do
     if (!email) email = prompt("Confirm your email address to finish signing in");
     if (!email) return null;
-    const cred = A.EmailAuthProvider.credentialWithLink(email, location.href);
-    const u = auth.currentUser;
+    email = email.trim();
+    const cred = A.EmailAuthProvider.credentialWithLink(email, href);
     try {
-      if (u && u.isAnonymous) await A.linkWithCredential(u, cred);
-      else await A.signInWithCredential(auth, cred);
+      try {
+        if (u && u.isAnonymous) await A.linkWithCredential(u, cred);
+        else await A.signInWithCredential(auth, cred);
+      } catch (e) {
+        if (e.code === "auth/credential-already-in-use" || e.code === "auth/email-already-in-use") await A.signInWithCredential(auth, cred);
+        else throw e;
+      }
     } catch (e) {
-      if (e.code === "auth/credential-already-in-use" || e.code === "auth/email-already-in-use") await A.signInWithCredential(auth, cred);
-      else throw e;
+      if (e.code === "auth/invalid-action-code" || e.code === "auth/expired-action-code")
+        throw new Error("That sign-in link has expired or has already been used. Send yourself a new one from your profile.");
+      if (e.code === "auth/invalid-email")
+        throw new Error("That email doesn't match the sign-in link. Send yourself a new one from your profile.");
+      throw e;
     }
     try { localStorage.removeItem(EMAIL_KEY); } catch (_) {}
-    const join = new URLSearchParams(location.search).get("join");   // a guest who signed up to join a group
-    history.replaceState(null, "", location.pathname + (join ? "?join=" + encodeURIComponent(join) : ""));
     return { signedIn: email };
   }
 
