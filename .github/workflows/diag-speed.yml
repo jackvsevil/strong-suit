@@ -34,8 +34,8 @@ jobs:
       - name: Server time per function since #13
         continue-on-error: true
         run: |
-          gcloud logging read 'logName="projects/strong-suit/logs/run.googleapis.com%2Frequests" AND timestamp>="'"2026-10-20T14:21:00Z"'"' \
-            --project strong-suit --limit 20000 --format json > req.json
+          gcloud logging read 'logName="projects/strong-suit/logs/run.googleapis.com%2Frequests" AND timestamp>="'"2026-10-17T00:00:00Z"'"' \
+            --project strong-suit --limit 50000 --format json > req.json
           python3 .diag/logs.py > lat.txt 2>&1; cat lat.txt
           echo "::notice title=Server::$(sed ':a;N;$!ba;s/\n/%0A/g' lat.txt)"
       - name: Errors since #13
