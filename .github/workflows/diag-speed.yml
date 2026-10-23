@@ -1,0 +1,45 @@
+# Temporary, read-only speed check. Runs only on pushes to the diag-speed branch.
+name: Diagnose speed
+on:
+  push:
+    branches: [diag-speed]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Headers and sizes
+        continue-on-error: true
+        run: |
+          { for u in / /js/app.js /js/backend.js /fonts/fonts.css /fonts/gabarito-latin-wght-normal.woff2 /__/firebase/init.json; do
+              printf '%s: ' "$u"; curl -s -o /dev/null -D h.txt --compressed -w '%{size_download} bytes, %{time_total}s' "https://strongsuitgame.com$u"; printf ', %s\n' "$(grep -i '^cache-control' h.txt | tr -d '\r')"; done
+            for m in app auth firestore functions; do printf 'SDK firebase-%s.js: ' $m; curl -s -o /dev/null --compressed -w '%{size_download} bytes compressed\n' https://www.gstatic.com/firebasejs/12.19.0/firebase-$m.js; done
+            printf 'Functions preflight headers: '; curl -s -o /dev/null -D p.txt -X OPTIONS -H 'Origin: https://strongsuitgame.com' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-type' https://europe-west2-strong-suit.cloudfunctions.net/submitRound; grep -i 'access-control-max-age\|^HTTP' p.txt | tr -d '\r' | tr '\n' ' '; echo
+          } > hdr.txt 2>&1; cat hdr.txt
+          echo "::notice title=Headers::$(sed ':a;N;$!ba;s/\n/%0A/g' hdr.txt)"
+      - name: Load the home page in a browser (US machine)
+        continue-on-error: true
+        run: |
+          npm i --no-save --silent playwright@1 && npx playwright install --with-deps chromium > /dev/null 2>&1
+          node .diag/boot.mjs || true
+          echo "::notice title=Boot::$(sed ':a;N;$!ba;s/\n/%0A/g' boot.txt)"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/310245852159/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-deploy@strong-suit.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Server time per function since #13
+        continue-on-error: true
+        run: |
+          gcloud logging read 'logName="projects/strong-suit/logs/run.googleapis.com%2Frequests" AND timestamp>="'"2026-10-20T14:21:00Z"'"' \
+            --project strong-suit --limit 20000 --format json > req.json
+          python3 .diag/logs.py > lat.txt 2>&1; cat lat.txt
+          echo "::notice title=Server::$(sed ':a;N;$!ba;s/\n/%0A/g' lat.txt)"
+      - name: Errors since #13
+        continue-on-error: true
+        run: |
+          bash .diag/errors.sh > err.txt 2>&1; cat err.txt
+          echo "::notice title=Errors::$(wc -l < err.txt) lines%0A$(head -c 3000 err.txt | sed ':a;N;$!ba;s/\n/%0A/g')"
