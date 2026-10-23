@@ -44,7 +44,12 @@ async function firebaseBackend(config, source) {
   ]);
   const app = initializeApp(config);
   const auth = A.getAuth(app);
-  const db = F.getFirestore(app);
+  // Safari (and every iOS browser, which all use WebKit) can hold a Firestore read for about 30 seconds,
+  // until the next keep-alive arrives: https://github.com/firebase/firebase-js-sdk/issues/9789
+  // Long-polling avoids it, so use it there; other browsers keep the default connection.
+  const ua = navigator.userAgent || "";
+  const webkit = /AppleWebKit/.test(ua) && !/Chrome\/|Chromium|Android/.test(ua);
+  const db = webkit ? F.initializeFirestore(app, { experimentalForceLongPolling: true }) : F.getFirestore(app);
   const fns = Fn.getFunctions(app, "europe-west2");
   const call = name => async data => { try { return (await Fn.httpsCallable(fns, name)(data)).data; } catch (e) { throw friendly(e); } };
   const get = async path => { const s = await F.getDoc(F.doc(db, path)); return s.exists() ? s.data() : null; };
