@@ -42,4 +42,4 @@ jobs:
         continue-on-error: true
         run: |
           bash .diag/errors.sh > err.txt 2>&1; cat err.txt
-          echo "::notice title=Errors::$(wc -l < err.txt) lines%0A$(head -c 3000 err.txt | sed ':a;N;$!ba;s/\n/%0A/g')"
+          echo "::notice title=Errors::$(wc -l < err.txt) lines%0A$(head -c 6000 err.txt | sed ':a;N;$!ba;s/\n/%0A/g')"
